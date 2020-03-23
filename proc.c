@@ -124,6 +124,10 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
+
+  p->tgid = p->pid;
+  p->process = p;
+  initlock(&p->vlock, "vlock");
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -141,6 +145,7 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
+
 
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
