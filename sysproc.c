@@ -15,6 +15,12 @@ sys_fork(void)
 }
 
 int
+sys_clone(void)
+{
+  return clone();
+}
+
+int
 sys_exit(void)
 {
   exit();
@@ -40,7 +46,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return myproc()->tgid;
 }
 
 int

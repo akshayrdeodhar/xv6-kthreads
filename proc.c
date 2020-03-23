@@ -201,7 +201,6 @@ fork(void)
   initlock(&np->vlock, "vlock");
 
   valock = &(curproc->process->vlock);
-
   acquire(valock);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
@@ -547,4 +546,13 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// Create a new process copying p as the parent.
+// Sets up stack to return as if from system call.
+// Caller must set state of returned proc to RUNNABLE.
+int
+clone(void)
+{
+   return myproc()->pid;
 }
