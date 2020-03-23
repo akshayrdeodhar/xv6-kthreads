@@ -36,12 +36,18 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
+  struct spinlock lock         // Lock protecting virtual address space (sz, pgdir)
+  // lock when changing sz, pgdir
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
+  int tgid;                    // Thread Group ID
+  // same as pid of thread group leader
   struct proc *parent;         // Parent process
+  struct proc *process;        // Process group leader
+  // set this to oneself when fork() happens 
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
