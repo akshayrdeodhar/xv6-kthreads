@@ -17,7 +17,26 @@ sys_fork(void)
 int
 sys_clone(void)
 {
-  return clone();
+  int (*fn)(void *, void*);
+  void *arg1;
+  void *arg2;
+  void *stack;
+  int flags;
+
+  if (argptr(0, (char **)&fn, 0) < 0)
+    return -1;
+  if (argptr(1, (char **)&arg1, 0) < 0)
+    return -1;
+  if (argptr(2, (char **)&arg2, 0) < 0)
+    return -1;
+  if (argptr(3, (char **)&stack, 0) < 0)
+    return -1;
+  if (argint(4, &flags) < 0)
+    return -1;
+  if (((uint)stack) > KERNBASE) // passing bad stack
+    return -1;
+
+  return clone(fn, arg1, arg2, stack, flags);
 }
 
 int

@@ -552,7 +552,90 @@ procdump(void)
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 int
-clone(void)
+clone(int (*fn)(void *, void*), void *arg1, void *arg2, 
+      void *stack, int flags)
 {
-   return myproc()->pid;
+  int i, pid;
+  uint arg1, arg2, retaddr, *sp;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  if (((uint *)stack) > curproc->sz) {
+    return -1;
+  }
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // Thread group
+  np->tgid = curproc->tgid;
+  np->process = curproc->process;
+  initlock(&np->vlock, "vlock");
+
+  struct spinlock *valock = &(curproc->process->vlock);
+  acquire(valock);
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  release(valock);
+
+  np->parent = curproc->process->parent;
+  *np->tf = *curproc->tf;
+
+  // lay out the stack for user program
+  sp = (uint *)stack;
+  sp -= 1;
+  *sp = (uint)arg2;
+  sp -= 1;
+  *sp = (uint)arg1;
+  sp -= 1;
+  *sp = (uint)exit; // temperory, should be die()
+
+  // In child, begin execution from fn, args are in stack
+  np->tf->eip = fn;
+  np->tf->esp = sp;
+
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  pid = np->pid;
+
+  acquire(&ptable.lock);
+
+  np->state = RUNNABLE;
+
+  release(&ptable.lock);
+
+  return pid;
+}
+
+// Make the current thread zombie
+// Do not return
+// A dead thread remains in ZOMBIE
+// state till some thread from the 
+// parent process calls wait on it
+void
+die(void)
+{
+  struct proc *curproc = myproc();
+  struct proc *p;
+  int fd;
+
+  if(curproc == initproc)
+    panic("init exiting");
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(curproc->parent);
+
+  // Jump into the scheduler, never to return.
+  curproc->state = ZOMBIE;
+  sched();
+  panic("zombie exit");
 }
