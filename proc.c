@@ -4,8 +4,8 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "x86.h"
-#include "proc.h"
 #include "spinlock.h"
+#include "proc.h"
 
 struct {
   struct spinlock lock;
@@ -183,12 +183,21 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
+  struct spinlock *valock;
 
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
 
+  // Thread group
+  np->tgid = np->pid;
+  np->process = np;
+  initlock(&np->vlock, "vlock");
+
+  valock = &(curproc->process->vlock);
+
+  acquire(valock);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -197,6 +206,8 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
+  release(valock);
+
   np->parent = curproc;
   *np->tf = *curproc->tf;
 

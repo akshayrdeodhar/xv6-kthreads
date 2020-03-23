@@ -36,9 +36,9 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
-  struct spinlock lock         // Lock protecting virtual address space (sz, pgdir)
-  // lock when changing sz, pgdir
   uint sz;                     // Size of process memory (bytes)
+  struct spinlock vlock;       // Lock protecting virtual address space (sz, pgdir)
+
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
@@ -62,3 +62,4 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
