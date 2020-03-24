@@ -7,16 +7,28 @@
 
 #define N  1000
 
+char buffer[4096];
+char buffer2[4096];
+
+int
+dummyprint2(void *x, void *y)
+{
+  int a = *((int *)x) + *((int *)y);
+  printf(1, "I am 2, I calculated %d\n", a);
+  exit();
+}
+
 int
 dummyprint(void *x, void *y)
 {
   int a = *((int *)x) + *((int *)y);
   printf(1, "I calculated %d\n", a);
+  clone(dummyprint2, x, y, (void *)(buffer2 + 4096), 0);
   exit();
 }
 
 
-char buffer[4096];
+
 
 void
 clonetest(void)
@@ -33,12 +45,6 @@ clonetest(void)
 int
 main(void)
 {
-  //clonetest();
-  int x;
-  x = fork();
-  if (x) 
-    printf(1, "The PARENT\n");
-  else
-    printf(1, "The CHILD\n");
+  clonetest();
   exit();
 }

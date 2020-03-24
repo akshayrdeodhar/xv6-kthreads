@@ -129,10 +129,7 @@ userinit(void)
   p->process = p;
   initlock(&p->vlock, "vlock");
 
-  initlock(&p->countlock, "threadcount");
-  acquire(&p->countlock);
   p->threadcount = 1;
-  release(&p->countlock);
   
   initproc = p;
 
@@ -207,11 +204,6 @@ fork(void)
   np->tgid = np->pid;
   np->process = np;
 
-  initlock(&np->countlock, "threadcount");
-  acquire(&np->countlock);
-  np->threadcount = 1;
-  release(&np->countlock);
-
   initlock(&np->vlock, "vlock");
   valock = &(curproc->process->vlock);
   acquire(valock);
@@ -243,6 +235,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->threadcount = 1;
 
   release(&ptable.lock);
 
@@ -275,11 +268,9 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-  acquire(&curproc->process->countlock);
-  curproc->process->threadcount -= 1;
-  release(&curproc->process->countlock);
 
   acquire(&ptable.lock);
+  curproc->process->threadcount -= 1;
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
@@ -318,8 +309,10 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
+      // ensure: threadcount is being protected by ptable.lock
+      if (p->tgid == p->pid && p->threadcount)
+        continue;
       if(p->state == ZOMBIE){
-        // Found one.
         pid = p->tgid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -329,10 +322,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-	acquire(&p->process->countlock);
 	threadcount = p->process->threadcount;
-	release(&p->process->countlock);
-	p->process = 0;
 	if (threadcount == 0) {
           freevm(p->pgdir);
           release(&ptable.lock);
@@ -610,15 +600,12 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   // the threadcount will be equal to the number
   // of threads using the pgdir of the thread group
   // leader
-  acquire(&(curproc->process->countlock));
-  curproc->process->threadcount += 1;
-  release(&(curproc->process->countlock));
+  np->threadcount = 0;
 
-  np->parent = curproc->process->parent;
+  np->parent = curproc->parent;
   *np->tf = *curproc->tf;
 
   // lay out the stack for user program
-  cprintf("Arguments are %d, %d\n", *(int *)arg1, *(int *)arg2);
   sp = (uint *)stack;
   sp -= 1;
   *sp = (uint)arg2;
@@ -641,6 +628,7 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   pid = np->pid;
 
   acquire(&ptable.lock);
+  curproc->process->threadcount += 1;
 
   np->state = RUNNABLE;
 
@@ -671,4 +659,10 @@ die(void)
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
+}
+
+int
+join(void **stack)
+{
+  return 0;
 }

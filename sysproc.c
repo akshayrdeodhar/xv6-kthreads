@@ -39,6 +39,16 @@ sys_clone(void)
   return clone(fn, arg1, arg2, stack, flags);
 }
 
+int 
+sys_join(void)
+{
+  void **stack;
+  if (argint(0, (int *)&stack) < 0)
+    return -1; 
+
+  return join(stack);
+}
+
 int
 sys_exit(void)
 {
