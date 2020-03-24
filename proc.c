@@ -270,7 +270,6 @@ exit(void)
 
 
   acquire(&ptable.lock);
-  curproc->process->threadcount -= 1;
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
@@ -296,7 +295,7 @@ exit(void)
 int
 wait(void)
 {
-  struct proc *p;
+  struct proc *p, *temp;
   int havekids, pid;
   struct proc *curproc = myproc();
   uint threadcount;
@@ -309,8 +308,9 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
-      // ensure: threadcount is being protected by ptable.lock
-      if (p->tgid == p->pid && p->threadcount)
+
+      // do not harvest leader before other threads
+      if (p->tgid == p->pid && p->threadcount > 1)
         continue;
       if(p->state == ZOMBIE){
         pid = p->tgid;
@@ -322,14 +322,18 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+	p->process->threadcount -= 1;
 	threadcount = p->process->threadcount;
 	if (threadcount == 0) {
+	  p->process = 0;
           freevm(p->pgdir);
           release(&ptable.lock);
           return pid;
 	}
-	else {
-	  break;
+	else if (threadcount == 1) {
+	  temp = p->process;
+	  p->process = 0;
+	  p = temp - 1;
 	}
       }
     }
