@@ -128,12 +128,20 @@ userinit(void)
   p->tgid = p->pid;
   p->process = p;
   initlock(&p->vlock, "vlock");
+
+  initlock(&p->countlock, "threadcount");
+  acquire(&p->countlock);
+  p->threadcount = 1;
+  release(&p->countlock);
   
   initproc = p;
+
+  acquire(&p->vlock);
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
+  release(&p->vlock);
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -198,8 +206,13 @@ fork(void)
   // Thread group
   np->tgid = np->pid;
   np->process = np;
-  initlock(&np->vlock, "vlock");
 
+  initlock(&np->countlock, "threadcount");
+  acquire(&np->countlock);
+  np->threadcount = 1;
+  release(&np->countlock);
+
+  initlock(&np->vlock, "vlock");
   valock = &(curproc->process->vlock);
   acquire(valock);
   // Copy process state from proc.
@@ -262,6 +275,10 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
+  acquire(&curproc->process->countlock);
+  curproc->process->threadcount -= 1;
+  release(&curproc->process->countlock);
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -283,6 +300,7 @@ exit(void)
 }
 
 // Wait for a child process to exit and return its pid.
+// *a* child process -> all threads of one child
 // Return -1 if this process has no children.
 int
 wait(void)
@@ -290,6 +308,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
+  uint threadcount;
   
   acquire(&ptable.lock);
   for(;;){
@@ -301,17 +320,27 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-        pid = p->pid;
+        pid = p->tgid;
         kfree(p->kstack);
         p->kstack = 0;
-        freevm(p->pgdir);
         p->pid = 0;
+	p->tgid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-        release(&ptable.lock);
-        return pid;
+	acquire(&p->process->countlock);
+	threadcount = p->process->threadcount;
+	release(&p->process->countlock);
+	p->process = 0;
+	if (threadcount == 0) {
+          freevm(p->pgdir);
+          release(&ptable.lock);
+          return pid;
+	}
+	else {
+	  break;
+	}
       }
     }
 
@@ -556,13 +585,9 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
       void *stack, int flags)
 {
   int i, pid;
-  uint arg1, arg2, retaddr, *sp;
+  uint *sp;
   struct proc *np;
   struct proc *curproc = myproc();
-
-  if (((uint *)stack) > curproc->sz) {
-    return -1;
-  }
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -572,29 +597,39 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   // Thread group
   np->tgid = curproc->tgid;
   np->process = curproc->process;
-  initlock(&np->vlock, "vlock");
 
+  initlock(&np->vlock, "vlock");
   struct spinlock *valock = &(curproc->process->vlock);
   acquire(valock);
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
   release(valock);
 
+  // one more thread using same address space
+  // invariant: when exiting this system call
+  // the threadcount will be equal to the number
+  // of threads using the pgdir of the thread group
+  // leader
+  acquire(&(curproc->process->countlock));
+  curproc->process->threadcount += 1;
+  release(&(curproc->process->countlock));
+
   np->parent = curproc->process->parent;
   *np->tf = *curproc->tf;
 
   // lay out the stack for user program
+  cprintf("Arguments are %d, %d\n", *(int *)arg1, *(int *)arg2);
   sp = (uint *)stack;
   sp -= 1;
   *sp = (uint)arg2;
   sp -= 1;
   *sp = (uint)arg1;
   sp -= 1;
-  *sp = (uint)exit; // temperory, should be die()
+  *sp = (uint)0xffffffff; // temperory, should be die()
 
   // In child, begin execution from fn, args are in stack
-  np->tf->eip = fn;
-  np->tf->esp = sp;
+  np->tf->eip = (uint)fn;
+  np->tf->esp = (uint)sp;
 
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
@@ -623,8 +658,6 @@ void
 die(void)
 {
   struct proc *curproc = myproc();
-  struct proc *p;
-  int fd;
 
   if(curproc == initproc)
     panic("init exiting");

@@ -39,6 +39,8 @@ struct proc {
   uint sz;                     // Size of process memory (bytes)
   struct spinlock vlock;       // Lock protecting virtual address space (sz, pgdir)
 
+  struct spinlock countlock;
+  uint threadcount;            // Number of alive threads sharing virtual memory
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
