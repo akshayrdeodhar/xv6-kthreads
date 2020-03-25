@@ -11,6 +11,8 @@ char buffer[4096];
 char buffer2[4096];
 char buffer3[4096];
 
+char *argv[] = {"ls", 0};
+
 int
 dummyprint2(void *x, void *y)
 {
@@ -38,7 +40,7 @@ clonetest(void)
   int a, b;
   a = 4;
   b = 2;
-  x = clone(dummyprint, (void *)&a, (void *)&b, (void *)(buffer + 4096), 0);
+  x = clone(dummyprint2, (void *)&a, (void *)&b, (void *)(buffer + 4096), 0);
   y = fork();
   if (y) {
     printf(1, "Parent: PID: %d, y = %d\n", x, y);
@@ -47,8 +49,9 @@ clonetest(void)
   else {
     printf(1, "Child: PID: %d, y = %d\n", x, y);
     clone(dummyprint, &a, &b, (void *)(buffer3 + 4096), 0);
+    printf(1, "Executing");
+    exec("ls", argv);
   }
-  exit();
 }
 
 

@@ -631,8 +631,8 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   pid = np->pid;
 
   acquire(&ptable.lock);
-  curproc->process->threadcount += 1;
 
+  curproc->process->threadcount += 1;
   np->state = RUNNABLE;
 
   release(&ptable.lock);
