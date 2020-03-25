@@ -7,10 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 
-struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
+struct table ptable;
 
 static struct proc *initproc;
 
@@ -268,11 +265,13 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
+
+  // exec-er might be sleeping in wait() 
+  wakeup1(curproc->process);
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){

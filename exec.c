@@ -12,13 +12,14 @@ int
 exec(char *path, char **argv)
 {
   char *s, *last;
-  int i, off;
+  int i, off, alive;
   uint argc, sz, sp, ustack[3+MAXARG+1];
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+  struct proc *p;
 
   begin_op();
 
@@ -93,6 +94,39 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
+
+  acquire(&ptable.lock);
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
+      p->killed = 1;
+      if (p->state == SLEEPING) 
+        p->state = RUNNABLE;
+    }
+  }
+  release(&ptable.lock);
+
+  acquire(&ptable.lock);
+  for (;;) {
+    alive = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      // assumption: wait() will clear PID, TID
+      if (p->tgid == curproc->tgid && p != curproc 
+                                   && p->state != ZOMBIE) {
+        alive = 1;
+	break;
+      }
+    }
+    if (alive) {
+      sleep(curproc->process, &ptable.lock);
+    }
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  curproc->pid = curproc->tgid;
+  curproc->process = curproc;
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
