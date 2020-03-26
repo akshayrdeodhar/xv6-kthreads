@@ -23,13 +23,13 @@ sys_clone(void)
   void *stack;
   int flags;
 
-  if (argptr(0, (char **)&fn, 0) < 0)
+  if (argint(0, (int *)&fn) < 0)
     return -1;
-  if (argptr(1, (char **)&arg1, 0) < 0)
+  if (argint(1, (int *)&arg1) < 0)
     return -1;
-  if (argptr(2, (char **)&arg2, 0) < 0)
+  if (argint(2, (int *)&arg2) < 0)
     return -1;
-  if (argptr(3, (char **)&stack, 0) < 0)
+  if (argint(3, (int *)&stack) < 0)
     return -1;
   if (argint(4, &flags) < 0)
     return -1;
