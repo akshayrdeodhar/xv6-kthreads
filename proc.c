@@ -632,8 +632,17 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
 
   acquire(&ptable.lock);
 
+  // if clone has occured parallely with exec
+  // the newly created thread must not run
+  // if clone has occured before exec, then 
+  // automatically, exec() will kill the thread
+  if (curproc->killed) {
+    np->state = ZOMBIE;
+  }
+  else {
+    np->state = RUNNABLE;
+  }
   curproc->process->threadcount += 1;
-  np->state = RUNNABLE;
 
   release(&ptable.lock);
 
