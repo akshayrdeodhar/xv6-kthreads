@@ -94,7 +94,8 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
-
+  
+  // Kill all other threads in the process
   acquire(&ptable.lock);
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
@@ -105,6 +106,7 @@ exec(char *path, char **argv)
   }
   release(&ptable.lock);
 
+  // Wait for them to die
   acquire(&ptable.lock);
   for (;;) {
     alive = 0;
