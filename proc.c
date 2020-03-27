@@ -168,7 +168,9 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
-  sz = curproc->sz;
+  acquire(&curproc->process->vlock);
+
+  sz = curproc->process->sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -176,7 +178,10 @@ growproc(int n)
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
-  curproc->sz = sz;
+  curproc->process->sz = sz;
+
+  release(&curproc->process->vlock);
+
   switchuvm(curproc);
   return 0;
 }
@@ -205,13 +210,13 @@ fork(void)
   valock = &(curproc->process->vlock);
   acquire(valock);
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->process->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
-  np->sz = curproc->sz;
+  np->sz = curproc->process->sz;
   release(valock);
 
   np->parent = curproc;
@@ -582,6 +587,12 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct proc *np;
   struct proc *curproc = myproc();
 
+  if ((uint)stack >= proc->process->sz || (uint)(stack - 4096) >= proc->process->sz)
+    return -1;
+  // page-aligned stack
+  if ((PGROUNDDOWN((int)stack) != (int)stack))
+    return -1;
+
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
@@ -595,7 +606,7 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct spinlock *valock = &(curproc->process->vlock);
   acquire(valock);
   np->pgdir = curproc->pgdir;
-  np->sz = curproc->sz;
+  np->sz = curproc->process->sz;
   release(valock);
 
   // one more thread using same address space
@@ -636,6 +647,9 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   // the newly created thread must not run
   // if clone has occured before exec, then 
   // automatically, exec() will kill the thread
+  // this will not become a permanant ZOMBIE,
+  // because the thread calling clone() will 
+  // cause wait() to not exit
   if (curproc->killed) {
     np->state = ZOMBIE;
   }

@@ -129,11 +129,18 @@ exec(char *path, char **argv)
 
   curproc->pid = curproc->tgid;
   curproc->process = curproc;
+  initlock(&curproc->vlock, "valock");
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
+
+  acquire(&curproc->vlock);
+
   curproc->pgdir = pgdir;
   curproc->sz = sz;
+
+  release(&curproc->vlock);
+
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
