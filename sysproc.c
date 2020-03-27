@@ -29,7 +29,7 @@ sys_clone(void)
     return -1;
   if (argptr(2, (char **)&arg2, 0) < 0)
     return -1;
-  if (argptr(3, (char **)&stack, 0) < 0)
+  if (argint(3, (char **)&stack, 0) < 0)
     return -1;
   if (argint(4, &flags) < 0)
     return -1;

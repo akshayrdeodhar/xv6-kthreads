@@ -15,12 +15,13 @@
 // to a saved program counter, and then the first argument.
 
 // Fetch the int at addr from the current process.
+// proc->process->vlock must be held while calling function
 int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz || addr+4 > curproc->sz)
+  if(addr >= curproc->process->sz || addr+4 > curproc->process->sz)
     return -1;
   *ip = *(int*)(addr);
   return 0;
@@ -29,16 +30,17 @@ fetchint(uint addr, int *ip)
 // Fetch the nul-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
 // Returns length of string, not including nul.
+// proc->process->vlock must be held while calling function
 int
 fetchstr(uint addr, char **pp)
 {
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz)
+  if(addr >= curproc->process->sz)
     return -1;
   *pp = (char*)addr;
-  ep = (char*)curproc->sz;
+  ep = (char*)curproc->process->sz;
   for(s = *pp; s < ep; s++){
     if(*s == 0)
       return s - *pp;
@@ -56,6 +58,7 @@ argint(int n, int *ip)
 // Fetch the nth word-sized system call argument as a pointer
 // to a block of memory of size bytes.  Check that the pointer
 // lies within the process address space.
+// proc->process->vlock must be held while calling
 int
 argptr(int n, char **pp, int size)
 {
@@ -64,8 +67,9 @@ argptr(int n, char **pp, int size)
  
   if(argint(n, &i) < 0)
     return -1;
-  if(size < 0 || (uint)i >= curproc->sz || (uint)i+size > curproc->sz)
+  if(size < 0 || (uint)i >= curproc->process->sz || (uint)i+size > curproc->process->sz) {
     return -1;
+  }
   *pp = (char*)i;
   return 0;
 }
