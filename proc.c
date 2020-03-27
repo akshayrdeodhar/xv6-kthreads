@@ -275,7 +275,7 @@ exit(void)
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
-  // exec-er might be sleeping in wait() 
+  // some thread from group might be sleeping in wait() 
   wakeup1(curproc->process);
 
   // Pass abandoned children to init.
@@ -331,6 +331,7 @@ wait(void)
 	if (threadcount == 0) {
 	  p->process = 0;
           freevm(p->pgdir);
+	  p->pgdir = 0;
           release(&ptable.lock);
           return pid;
 	}
@@ -587,11 +588,14 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct proc *np;
   struct proc *curproc = myproc();
 
-  if ((uint)stack >= proc->process->sz || (uint)(stack - 4096) >= proc->process->sz)
+  // malicious stack?
+  if ((uint)(stack) >= curproc->process->sz || (uint)(stack + 4096) > curproc->process->sz)
     return -1;
   // page-aligned stack
   if ((PGROUNDDOWN((int)stack) != (int)stack))
     return -1;
+
+  stack += 4096; // top of the stack
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -687,8 +691,62 @@ die(void)
   panic("zombie exit");
 }
 
+// Wait for thread from same thread group having
+// the pid specified to exit
+// Return -1 if there is no thread having given
+// pid in thread group.
+// Will not reap the ZOMBIE thread group leader
+// TODO: detect deadlock wait by traversal?
 int
-join(void **stack)
+join (int pid)
 {
-  return 0;
+  struct proc *p;
+  int exists;
+  struct proc *curproc = myproc();
+
+  if (pid == curproc->pid)
+    return -1;
+  
+  acquire(&ptable.lock);
+  for(;;){
+
+    exists = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if (p->pid == pid && p->tgid == curproc->tgid)
+        exists = 1; 
+      else
+        continue;
+
+      // assert: found the thread to wait for
+
+      if (p->state != ZOMBIE){
+         // go to sleep
+         break;
+      }
+      
+      if (p->pid != p->tgid) {
+        pid = p->tgid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->pid = 0;
+	p->tgid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+	p->process->threadcount -= 1;
+	p->process = 0;
+      }
+      return p->pid;
+    }
+
+    // No point waiting if we don't have any children.
+    if(!exists || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for thread to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc->process, &ptable.lock);  //DOC: wait-sleep
+  }
 }

@@ -29,7 +29,7 @@ sys_clone(void)
     return -1;
   if (argptr(2, (char **)&arg2, 0) < 0)
     return -1;
-  if (argint(3, (char **)&stack, 0) < 0)
+  if (argint(3, (int *)&stack) < 0)
     return -1;
   if (argint(4, &flags) < 0)
     return -1;
@@ -42,11 +42,11 @@ sys_clone(void)
 int 
 sys_join(void)
 {
-  void **stack;
-  if (argint(0, (int *)&stack) < 0)
+  int pid;
+  if (argint(0, (int *)&pid) < 0)
     return -1; 
 
-  return join(stack);
+  return join(pid);
 }
 
 int
