@@ -219,7 +219,6 @@ fork(void)
     np->kstack = 0;
     np->state = UNUSED;
     release(valock);
-    cprintf("copyuvm failed\n");
     return -1;
   }
   np->sz = curproc->process->sz;
@@ -345,7 +344,7 @@ wait(void)
     }
   }
 
-  first = 0;
+  first = 1;
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->tgid != tgid)
       continue;
