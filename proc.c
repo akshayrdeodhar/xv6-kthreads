@@ -740,6 +740,7 @@ join(int pid)
         p->killed = 0;
         p->state = UNUSED;
 	p->process = 0;
+	p->process->threadcount -= 1;
       }
       release(&ptable.lock);
       return pid;

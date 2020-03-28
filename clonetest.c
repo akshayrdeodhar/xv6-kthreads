@@ -196,8 +196,7 @@ int childwaittest(void){
   return 0;
 }
 
-int main(void){
-  memtest1();
+int main(void){ memtest1();
   jointest();
   jointest1();
   //waitjointest();
