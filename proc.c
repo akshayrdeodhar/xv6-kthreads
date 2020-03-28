@@ -172,11 +172,15 @@ growproc(int n)
 
   sz = curproc->process->sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
+      release(&curproc->process->vlock);
       return -1;
+    }
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
+      release(&curproc->process->vlock);
       return -1;
+    }
   }
   curproc->process->sz = sz;
 
@@ -214,6 +218,8 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
+    release(valock);
+    cprintf("copyuvm failed\n");
     return -1;
   }
   np->sz = curproc->process->sz;

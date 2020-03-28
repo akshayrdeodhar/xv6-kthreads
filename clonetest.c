@@ -234,11 +234,42 @@ int exectest(void){
   return 0;
 }
 
+int racer(void *count, void *dummy){
+  int i;
+  int countt = *((int *)count);
+  for(i = 0; i < countt; i++){
+    sbrk(1);
+  }
+  exit();
+}
+
+int memtest(void){
+  char *stack1, *stack2;
+  stack1 = malloc(4096);
+  stack2 = malloc(4096);
+  int count = 100;
+  char *initialstack = sbrk(0);
+  int ret1, ret2;
+  ret1 = clone(racer, (void *)&count, 0, stack1, 0);
+  ret2 = clone(racer, (void *)&count, 0, stack2, 0);
+  join(ret1);
+  join(ret2);
+  char *finalstack = sbrk(0);
+  if((finalstack - initialstack) != (count * 2)){
+    printf(1, "memtest failed\n");
+  }
+  else{
+    printf(1, "memtest succeeded\n");
+  }
+  return 0;
+}
+
 int main(void){ memtest1();
   jointest();
   jointest1();
   waitjointest();
   childwaittest();
   exectest();
+  memtest();
   exit();
 }
