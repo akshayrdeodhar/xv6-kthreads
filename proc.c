@@ -180,6 +180,8 @@ growproc(int n)
   }
   curproc->process->sz = sz;
 
+  cprintf("Size or process %s is %d\n", curproc->name, curproc->process->sz);
+
   release(&curproc->process->vlock);
 
   switchuvm(curproc);
@@ -219,7 +221,7 @@ fork(void)
   np->sz = curproc->process->sz;
   release(valock);
 
-  np->parent = curproc;
+  np->parent = curproc->process;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -350,7 +352,7 @@ wait(void)
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    sleep(curproc->process, &ptable.lock);  //DOC: wait-sleep
   }
 }
 
@@ -697,8 +699,12 @@ die(void)
 // pid in thread group.
 // Will not reap the ZOMBIE thread group leader
 // TODO: detect deadlock wait by traversal?
+// Return implies one of the following:
+// a) child is present, and has returned
+// b) child was not present, returned -1
+// In any case, if child is running, will not return
 int
-join (int pid)
+join(int pid)
 {
   struct proc *p;
   int exists;
@@ -725,7 +731,6 @@ join (int pid)
       }
       
       if (p->pid != p->tgid) {
-        pid = p->tgid;
         kfree(p->kstack);
         p->kstack = 0;
         p->pid = 0;
@@ -734,10 +739,10 @@ join (int pid)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-	p->process->threadcount -= 1;
 	p->process = 0;
       }
-      return p->pid;
+      release(&ptable.lock);
+      return pid;
     }
 
     // No point waiting if we don't have any children.

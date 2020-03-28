@@ -25,8 +25,10 @@ void
 acquire(struct spinlock *lk)
 {
   pushcli(); // disable interrupts to avoid deadlock.
-  if(holding(lk))
+  if(holding(lk)) {
+    cprintf("In kernel, process: %s, lock: %s\n", myproc()->name, lk->name);
     panic("acquire");
+  }
 
   // The xchg is atomic.
   while(xchg(&lk->locked, 1) != 0)

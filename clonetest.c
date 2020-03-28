@@ -53,10 +53,154 @@ int memtest1(void) {
   
   sharedmem[2] = 1;
 
+  join(retval);
+  sbrk(-4096);
+
   return 0;
 }
 
-int main(void) {
+int jointestchild(void *a, void *b){
+  int *x = (int *)a;
+  int *y = (int *)b;
+  int temp;
+  temp = *x;
+  *x = *y;
+  *y = temp;
+  sleep(100);
+  exit();
+}
+
+int jointest(void){
+  int a, b;
+  a = 42;
+  b = 25;
+  int retval;
+  char *buffer;
+  buffer = sbrk(4096);
+  if (buffer == (char *)-1)
+    return -1;
+  retval = clone(jointestchild, (void *)&a, (void *)&b, buffer, 0);
+  join(retval);
+  sbrk(-4096);
+  if (a == 25 && b == 42)
+    printf(1, "Join test succeeded\n");
+  else
+    printf(1, "Join test failed\n");
+  return 0;
+}
+
+int jointestchild1(void *a, void *b){
+  int x = *((int *)a);
+  sleep(x);
+  printf(1, "Child %d will return\n", x);
+  exit();
+}
+
+int jointest1(void){
+  int tid1, tid2;
+  int ret1, ret2;
+  int one, two;
+  char *buffer1, *buffer2;
+  buffer1 = sbrk(4096);
+  buffer2 = sbrk(4096);
+  one = 50;
+  two = 100;
+  tid1 = clone(jointestchild1, (void *)&one, 0, buffer1, 0);
+  tid2 = clone(jointestchild1, (void *)&two, 0, buffer2, 0);
+  sbrk(-8192);
+  ret1 = join(tid1);
+  ret2 = join(tid2);
+  if (ret1 == tid1 && ret2 == tid2)
+    printf(1, "Joining order test succeeded\n");
+  else
+    printf(1, "Joining order test failed\n");
+  return 0;
+}
+
+int waitjointest(void){
+  int tgid1, tgid2;
+  int tid11, tid12, tid21, tid22;
+  int ret11, ret12, ret21, ret22;
+  int one1, two1, one2, two2;
+  char *stack11, *stack12, *stack21, *stack22;
+  one1 = 1;
+  two1 = 1;
+  one2 = 1;
+  two2 = 1;
+
+  tgid1 = fork();
+  if (!tgid1){
+    // child
+    stack11 = sbrk(4096);
+    stack12 = sbrk(4096);
+    tid11 = clone(jointestchild1, &one1, 0, stack11, 0);
+    tid12 = clone(jointestchild1, &two1, 0, stack12, 0);
+    ret11 = join(tid11);
+    ret12 = join(tid12);
+    sbrk(-8192);
+    sleep(5);
+    if (ret11 != tid11 || ret12 != tid12)
+      printf(1, "Wait reaped before join, wait-join exclusivity test failed\n");
+    exit();
+  }
+
+  tgid2 = fork();
+  if (!tgid2){
+    // child
+    stack21 = sbrk(4096);
+    stack22 = sbrk(4096);
+    tid21 = clone(jointestchild1, &one2, 0, stack21, 0);
+    tid22 = clone(jointestchild1, &two2, 0, stack22, 0);
+    ret21 = join(tid21);
+    ret22 = join(tid22);
+    sbrk(-8192);
+    if (ret21 != tid21 || ret22 != tid22)
+      printf(1, "Wait reaped before join, wait-join exclusivity test failed\n");
+    exit();
+  }
+
+  int ret;
+  while((ret = wait()) != -1);
+
+  return 0;
+
+}
+
+int wait_er(void *a, void *b){
+  int ret;
+  while((ret = wait()) != -1);
+  exit();
+}
+
+int childwaittest(void){
+  char *stack;
+  stack = sbrk(4096);  
+  int tid;
+  int ret;
+  ret = fork();
+  if (!ret){
+    printf(1, "Child process in waiter thread test\n");
+    sleep(20);
+    exit();
+  }
+  tid = clone(wait_er, 0, 0, stack, 0);
+  ret = join(tid);
+  ret = wait();
+  if (ret != -1){
+    printf(1, "Waiter thread test failed\n");
+  }
+  else {
+    printf(1, "Waiter thread test succeeded\n");
+  }
+  sbrk(-4096);
+  return 0;
+}
+
+int main(void){
   memtest1();
+  jointest();
+  jointest1();
+  //waitjointest();
+  //childwaittest();
   exit();
 }
