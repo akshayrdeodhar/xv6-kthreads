@@ -180,8 +180,6 @@ growproc(int n)
   }
   curproc->process->sz = sz;
 
-  cprintf("Size or process %s is %d\n", curproc->name, curproc->process->sz);
-
   release(&curproc->process->vlock);
 
   switchuvm(curproc);
@@ -362,8 +360,10 @@ wait(void)
 	first = 0;
       }
       p->pgdir = 0;
-    }else
+    }else{
+      cprintf("pid: %d, name: %s, tgid: %d\n", p->pid, p->name, p->tgid);
       panic("undead");
+    }
   }
 
   release(&ptable.lock);
@@ -736,8 +736,13 @@ join(int pid)
     return -1;
   }
 
-  while(p->state != ZOMBIE)
+  while(p->state != ZOMBIE){
+    if(curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
     sleep(curproc->process, &ptable.lock);
+  }
 
   if(p->tgid != p->pid){
     kfree(p->kstack);

@@ -196,10 +196,49 @@ int childwaittest(void){
   return 0;
 }
 
+char *execargs[] = {"ls", 0};
+int execchild(void *a, void *b){
+  int ret;
+  ret = exec("ls", execargs);
+  if(ret == -1){
+    printf(1, "exec(ls) failed\n");
+  }
+  return 0;
+}
+
+int exectest(void){
+  int ret1, ret2;
+  int tid1, tid2;
+  char *stack1, *stack2;
+  int thousand = 1000;
+  ret1 = fork();
+  if(!ret1){
+    stack1 = sbrk(4096);
+    stack2 = sbrk(4096);
+    tid1 = clone(jointestchild1, &thousand, 0, stack1, 0);
+    tid2 = clone(execchild, 0, 0, stack2, 0);
+    join(tid2);
+    printf(1, "exec test failed\n");
+    join(tid1);
+    exit();
+  }
+  else{
+    ret2 = wait();
+    if(ret1 == ret2){
+      printf(1, "exec test succeeded\n");
+    }
+    else{
+      printf(1, "exec test failed (%d, %d)\n", ret1, ret2);
+    }
+  }
+  return 0;
+}
+
 int main(void){ memtest1();
   jointest();
   jointest1();
   waitjointest();
   childwaittest();
+  exectest();
   exit();
 }

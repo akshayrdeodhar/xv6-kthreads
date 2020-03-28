@@ -114,6 +114,7 @@ exec(char *path, char **argv)
       // assumption: wait() will clear PID, TID
       if (p->tgid == curproc->tgid && p != curproc 
                                    && p->state != ZOMBIE) {
+	cprintf("pid: %d, tgid: %d, name = %s\n", p->pid, p->tgid, p->name);
         alive = 1;
 	break;
       }
@@ -129,6 +130,7 @@ exec(char *path, char **argv)
 
   curproc->pid = curproc->tgid;
   curproc->process = curproc;
+  curproc->threadcount = 1;
   initlock(&curproc->vlock, "valock");
 
   // Commit to the user image.
