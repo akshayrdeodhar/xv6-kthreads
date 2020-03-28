@@ -532,8 +532,8 @@ wakeup(void *chan)
   release(&ptable.lock);
 }
 
-// Kill the process with the given pid.
-// Process won't exit until it returns
+// Kill the thread with the given pid.
+// thread won't exit until it returns
 // to user space (see trap in trap.c).
 int
 kill(int pid)
@@ -605,13 +605,14 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct proc *curproc = myproc();
 
   // malicious stack?
-  if ((uint)(stack) >= curproc->process->sz || (uint)(stack + 4096) > curproc->process->sz)
+  if ((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz)
     return -1;
-  // page-aligned stack
-  if ((PGROUNDDOWN((int)stack) != (int)stack))
-    return -1;
+  // page-aligned stack: malloc() does not guarentee,
+  // callo
+  //if ((PGROUNDDOWN((int)stack) != (int)stack))
+  //  return -1;
 
-  stack += 4096; // top of the stack
+  //stack += 4096; // top of the stack
 
   // Allocate process.
   if((np = allocproc()) == 0){

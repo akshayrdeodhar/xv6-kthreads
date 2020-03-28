@@ -38,7 +38,7 @@ int memtest1(void) {
 
   a = sbrk(10);
 
-  retval = clone(memtestchild, (void *)a, (void *)sharedmem, buf, 0);
+  retval = clone(memtestchild, (void *)a, (void *)sharedmem, buf + 4096, 0);
   if (retval < 0) {
     printf(1, "Clone failed, retval = %d\n", retval);
     return 1;
@@ -79,7 +79,7 @@ int jointest(void){
   buffer = sbrk(4096);
   if (buffer == (char *)-1)
     return -1;
-  retval = clone(jointestchild, (void *)&a, (void *)&b, buffer, 0);
+  retval = clone(jointestchild, (void *)&a, (void *)&b, buffer + 4096, 0);
   join(retval);
   sbrk(-4096);
   if (a == 25 && b == 42)
@@ -105,8 +105,8 @@ int jointest1(void){
   buffer2 = sbrk(4096);
   one = 50;
   two = 100;
-  tid1 = clone(jointestchild1, (void *)&one, 0, buffer1, 0);
-  tid2 = clone(jointestchild1, (void *)&two, 0, buffer2, 0);
+  tid1 = clone(jointestchild1, (void *)&one, 0, buffer1 + 4096, 0);
+  tid2 = clone(jointestchild1, (void *)&two, 0, buffer2 + 4096, 0);
   sbrk(-8192);
   ret1 = join(tid1);
   ret2 = join(tid2);
@@ -133,8 +133,8 @@ int waitjointest(void){
     // child
     stack11 = sbrk(4096);
     stack12 = sbrk(4096);
-    tid11 = clone(jointestchild1, &one1, 0, stack11, 0);
-    tid12 = clone(jointestchild1, &two1, 0, stack12, 0);
+    tid11 = clone(jointestchild1, &one1, 0, stack11 + 4096, 0);
+    tid12 = clone(jointestchild1, &two1, 0, stack12 + 4096, 0);
     ret11 = join(tid11);
     ret12 = join(tid12);
     sbrk(-8192);
@@ -149,8 +149,8 @@ int waitjointest(void){
     // child
     stack21 = sbrk(4096);
     stack22 = sbrk(4096);
-    tid21 = clone(jointestchild1, &one2, 0, stack21, 0);
-    tid22 = clone(jointestchild1, &two2, 0, stack22, 0);
+    tid21 = clone(jointestchild1, &one2, 0, stack21 + 4096, 0);
+    tid22 = clone(jointestchild1, &two2, 0, stack22 + 4096, 0);
     ret21 = join(tid21);
     ret22 = join(tid22);
     sbrk(-8192);
@@ -183,7 +183,7 @@ int childwaittest(void){
     sleep(20);
     exit();
   }
-  tid = clone(wait_er, 0, 0, stack, 0);
+  tid = clone(wait_er, 0, 0, stack + 4096, 0);
   ret = join(tid);
   ret = wait();
   if (ret != -1){
@@ -215,8 +215,8 @@ int exectest(void){
   if(!ret1){
     stack1 = sbrk(4096);
     stack2 = sbrk(4096);
-    tid1 = clone(jointestchild1, &thousand, 0, stack1, 0);
-    tid2 = clone(execchild, 0, 0, stack2, 0);
+    tid1 = clone(jointestchild1, &thousand, 0, stack1 + 4096, 0);
+    tid2 = clone(execchild, 0, 0, stack2 + 4096, 0);
     join(tid2);
     printf(1, "exec test failed\n");
     join(tid1);
