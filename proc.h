@@ -45,10 +45,9 @@ struct proc {
   enum procstate state;        // Process state
   int pid;                     // Process ID
   int tgid;                    // Thread Group ID
-  // same as pid of thread group leader
-  struct proc *parent;         // Parent process
-  struct proc *process;        // Process group leader
-  // set this to oneself when fork() happens 
+  // set this to np when fork() happens 
+  struct proc *process;        // thread group leader
+  struct proc *parent;         // thread group leader of parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan

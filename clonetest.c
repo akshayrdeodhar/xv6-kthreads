@@ -199,7 +199,7 @@ int childwaittest(void){
 int main(void){ memtest1();
   jointest();
   jointest1();
-  //waitjointest();
-  //childwaittest();
+  waitjointest();
+  childwaittest();
   exit();
 }
