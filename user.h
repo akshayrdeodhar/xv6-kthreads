@@ -49,3 +49,13 @@ int cthread_create(cthread_t *thread, int (*fn)(void *, void *), void *arg1, voi
 int cthread_cut(cthread_t *thread);
 int cthread_join(cthread_t *thread);
 void cthread_exit(void) __attribute__((noreturn));
+
+// ticket lock
+typedef struct{
+  uint ticket;
+  uint turn;
+}lock_t;
+
+void lock_init(lock_t *);
+void lock_acquire(lock_t *);
+void lock_release(lock_t *);

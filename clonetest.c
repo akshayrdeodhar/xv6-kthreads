@@ -365,18 +365,53 @@ toomanythreadstest(void)
   return 0;
 }
 
+int
+cottonticket(void *a, void *b)
+{
+  lock_t *lk = (lock_t *)b;
+  lock_acquire(lk);
+  printf(1, "%d\n", getpid());
+  lock_release(lk);
+  exit();
+}
+
+#define NT 60
+int
+tickettest(void)
+{
+  cthread_t threads[NT];
+  int arr[NT];
+  int i;
+  lock_t lock;
+  lock_init(&lock);
+
+  for (i = 0; i < NT; i++){
+    arr[i] = i;
+    cthread_create(&threads[i], cottonticket, (void *)&arr[i], (void *)&lock);
+  }
+  
+  for (i = 0; i < NT; i++){
+    cthread_join(&threads[i]);
+  }
+
+  return 0;
+}
+
+
+
 int 
 main(void)
 {
-  memtest1();
-  jointest();
-  jointest1();
-  waitjointest();
-  childwaittest();
-  exectest();
-  memtest();
-  cottontest1();
-  twoexectest();
-  toomanythreadstest();
+  //memtest1();
+  //jointest();
+  //jointest1();
+  //waitjointest();
+  //childwaittest();
+  //exectest();
+  //memtest();
+  //cottontest1();
+  //twoexectest();
+  //toomanythreadstest();
+  tickettest();
   exit();
 }

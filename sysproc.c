@@ -75,7 +75,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->tgid;
+  return myproc()->pid;
 }
 
 int
