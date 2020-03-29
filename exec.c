@@ -21,6 +21,54 @@ exec(char *path, char **argv)
   struct proc *curproc = myproc();
   struct proc *p;
 
+  
+  // Kill all other threads in the process
+  acquire(&ptable.lock);
+
+  if(curproc->killed){
+    release(&ptable.lock);
+    return -1;
+  }
+
+  if(curproc != curproc->process){
+    curproc->threadcount = curproc->process->threadcount;
+    curproc->process->threadcount = 0;
+    curproc->process->pid = curproc->pid;
+    curproc->pid = curproc->tgid;
+    curproc->process = curproc;
+  }
+
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
+      p->killed = 1;
+      p->process = curproc;
+      if (p->state == SLEEPING) 
+        p->state = RUNNABLE;
+    }
+  }
+  release(&ptable.lock);
+
+  // Wait for them to die
+  acquire(&ptable.lock);
+  for (;;) {
+    alive = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      // assumption: wait() will clear PID, TID
+      if (p->tgid == curproc->tgid && p != curproc 
+                                   && p->state != ZOMBIE) {
+        alive = 1;
+	break;
+      }
+    }
+    if (alive) {
+      sleep(curproc->process, &ptable.lock);
+    }
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -94,53 +142,15 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
-  
-  // Kill all other threads in the process
-  acquire(&ptable.lock);
-  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
-      p->killed = 1;
-      if (p->state == SLEEPING) 
-        p->state = RUNNABLE;
-    }
-  }
-  release(&ptable.lock);
 
-  // Wait for them to die
-  acquire(&ptable.lock);
-  for (;;) {
-    alive = 0;
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      // assumption: wait() will clear PID, TID
-      if (p->tgid == curproc->tgid && p != curproc 
-                                   && p->state != ZOMBIE) {
-	cprintf("pid: %d, tgid: %d, name = %s\n", p->pid, p->tgid, p->name);
-        alive = 1;
-	break;
-      }
-    }
-    if (alive) {
-      sleep(curproc->process, &ptable.lock);
-    }
-    else {
-      break;
-    }
-  }
-  curproc->process->threadcount = 0;
-  release(&ptable.lock);
-
-  curproc->process = curproc;
-  curproc->threadcount = 1;
   initlock(&curproc->vlock, "valock");
 
   // Commit to the user image.
-  oldpgdir = curproc->pgdir;
 
   acquire(&curproc->vlock);
-
+  oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
-
   release(&curproc->vlock);
 
   curproc->tf->eip = elf.entry;  // main

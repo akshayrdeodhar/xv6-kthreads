@@ -320,13 +320,13 @@ cottontest1(void)
 int 
 main(void)
 {
-  //memtest1();
-  //jointest();
-  //jointest1();
-  //waitjointest();
-  //childwaittest();
+  memtest1();
+  jointest();
+  jointest1();
+  waitjointest();
+  childwaittest();
   exectest();
-  //memtest();
-  //cottontest1();
+  memtest();
+  cottontest1();
   exit();
 }

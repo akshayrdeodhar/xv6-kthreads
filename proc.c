@@ -308,7 +308,7 @@ int
 wait(void)
 {
   struct proc *p;
-  int havekids, tgid, first, found;
+  int havekids, tgid, found;
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
@@ -344,15 +344,17 @@ wait(void)
     }
   }
 
-  first = 1;
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->tgid != tgid)
       continue;
-      
     // assert: this *p* is to be reaped
     if(p->state == ZOMBIE){
+      if(p->pid == p->tgid && p->process == p){
+        freevm(p->pgdir);
+      }
       kfree(p->kstack);
       p->kstack = 0;
+      p->context = 0;
       p->pid = 0;
       p->tgid = 0;
       p->parent = 0;
@@ -360,17 +362,12 @@ wait(void)
       p->killed = 0;
       p->state = UNUSED;
       p->process = 0;
-      if(first){
-        freevm(p->pgdir);
-	first = 0;
-      }
       p->pgdir = 0;
-    }else{
-      cprintf("pid: %d, name: %s, tgid: %d\n", p->pid, p->name, p->tgid);
+      p->threadcount = 0;
+    } else{
       panic("undead");
     }
   }
-
   release(&ptable.lock);
   return tgid;
 }
@@ -609,12 +606,12 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct proc *np;
   struct proc *curproc = myproc();
 
-  // malicious stack?
+  // anyway, not touching anything below stack - 12
   if ((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz)
     return -1;
+
   // page-aligned stack: malloc() does not guarentee,
-  // callo
-  //if ((PGROUNDDOWN((int)stack) != (int)stack))
+  // if ((PGROUNDDOWN((int)stack) != (int)stack))
   //  return -1;
 
   //stack += 4096; // top of the stack
@@ -669,17 +666,9 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
 
   acquire(&ptable.lock);
 
-  // if clone has occured parallely with exec
-  // the newly created thread must not run
-  // if clone has occured before exec, then 
-  // automatically, exec() will kill the thread
-  // this will not become a permanant ZOMBIE,
-  // because the thread calling clone() will 
-  // cause wait() to not exit
   if (curproc->killed) {
     np->state = ZOMBIE;
-  }
-  else {
+  } else {
     np->state = RUNNABLE;
     curproc->process->threadcount += 1;
   }
@@ -727,7 +716,7 @@ join(int pid)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      if(p->tgid == curproc->tgid){
+      if(p->tgid == curproc->tgid && p->process == curproc->process){
         break;
       }
       else{
@@ -750,9 +739,10 @@ join(int pid)
     sleep(curproc->process, &ptable.lock);
   }
 
-  if(p->tgid != p->pid){
+  if(p->tgid != p->pid && p != p->process){
     kfree(p->kstack);
     p->kstack = 0;
+    p->context = 0;
     p->pid = 0;
     p->tgid = 0;
     p->parent = 0;
@@ -760,6 +750,8 @@ join(int pid)
     p->killed = 0;
     p->state = UNUSED;
     p->process = 0;
+    p->pgdir = 0;
+    p->threadcount = 0;
   }
 
   release(&ptable.lock);
