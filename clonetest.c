@@ -102,7 +102,6 @@ jointestchild1(void *a, void *b)
 {
   int x = *((int *)a);
   sleep(x);
-  printf(1, "Child %d will return\n", x);
   exit();
 }
 
@@ -317,6 +316,55 @@ cottontest1(void)
   return 0;
 }
 
+int
+twoexectest(void)
+{
+  cthread_t t0, t1, t2;
+  int ret;
+  ret = fork();
+  if(!ret){
+    cthread_create(&t0, wait_er, 0, 0);
+    cthread_create(&t1, execchild, 0, 0);
+    cthread_create(&t2, execchild, 0, 0);
+    cthread_join(&t2);
+  }
+  wait();
+  printf(1, "twoexec test passed\n");
+  return 0;
+}
+
+#define TOO_MANY 100
+int
+toomanythreadstest(void)
+{
+  cthread_t arr[TOO_MANY];
+  int i, j, ret;
+  char *initial = sbrk(0);
+  char *final;
+  int flag = 0;
+  int time = 1000;
+  for(i = 0; i < TOO_MANY; i++){
+    ret = cthread_create(&arr[i], jointestchild1, &time, 0);
+    if(ret == -1){
+      break;
+    }
+  }
+  printf(1, "%d threads spawned\n", i);
+  if(i < 61){
+    // NPROC is 64
+    printf(1, "toomanythreads test failed\n");
+    flag = 1;
+  }
+  for (j = 0; j < i; j++){
+    ret = cthread_join(&arr[j]);
+  }
+  final = sbrk(0);
+  printf(1, "toomanythreads: %d -> %d\n", initial, final);
+  if(!flag)
+    printf(1, "toomanythreads test passed\n");
+  return 0;
+}
+
 int 
 main(void)
 {
@@ -328,5 +376,7 @@ main(void)
   exectest();
   memtest();
   cottontest1();
+  twoexectest();
+  toomanythreadstest();
   exit();
 }
