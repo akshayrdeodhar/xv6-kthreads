@@ -632,7 +632,7 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   struct spinlock *valock = &(curproc->process->vlock);
   acquire(valock);
   np->pgdir = curproc->pgdir;
-  np->sz = curproc->process->sz;
+  np->sz = 0;
   release(valock);
 
   // one more thread using same address space
@@ -681,8 +681,8 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   }
   else {
     np->state = RUNNABLE;
+    curproc->process->threadcount += 1;
   }
-  curproc->process->threadcount += 1;
 
   release(&ptable.lock);
 

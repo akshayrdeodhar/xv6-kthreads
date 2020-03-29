@@ -2,7 +2,9 @@
 #include "stat.h"
 #include "user.h"
 
-int memtestchild(void *x, void *y) {
+int
+memtestchild(void *x, void *y)
+{
   char *sharedmem = (char *)y;
   char *a = (char *)x;
 
@@ -19,7 +21,9 @@ int memtestchild(void *x, void *y) {
 
 }
 
-int memtest1(void) {
+int
+memtest1(void)
+{
   char *buf;
   char *a = 0;
   char *b1, *b2;
@@ -59,7 +63,9 @@ int memtest1(void) {
   return 0;
 }
 
-int jointestchild(void *a, void *b){
+int
+jointestchild(void *a, void *b)
+{
   int *x = (int *)a;
   int *y = (int *)b;
   int temp;
@@ -70,7 +76,9 @@ int jointestchild(void *a, void *b){
   exit();
 }
 
-int jointest(void){
+int
+jointest(void)
+{
   int a, b;
   a = 42;
   b = 25;
@@ -89,14 +97,18 @@ int jointest(void){
   return 0;
 }
 
-int jointestchild1(void *a, void *b){
+int
+jointestchild1(void *a, void *b)
+{
   int x = *((int *)a);
   sleep(x);
   printf(1, "Child %d will return\n", x);
   exit();
 }
 
-int jointest1(void){
+int
+jointest1(void)
+{
   int tid1, tid2;
   int ret1, ret2;
   int one, two;
@@ -117,7 +129,9 @@ int jointest1(void){
   return 0;
 }
 
-int waitjointest(void){
+int
+waitjointest(void)
+{
   int tgid1, tgid2;
   int tid11, tid12, tid21, tid22;
   int ret11, ret12, ret21, ret22;
@@ -166,13 +180,17 @@ int waitjointest(void){
 
 }
 
-int wait_er(void *a, void *b){
+int
+wait_er(void *a, void *b)
+{
   int ret;
   while((ret = wait()) != -1);
   exit();
 }
 
-int childwaittest(void){
+int 
+childwaittest(void)
+{
   char *stack;
   stack = sbrk(4096);  
   int tid;
@@ -197,7 +215,9 @@ int childwaittest(void){
 }
 
 char *execargs[] = {"ls", 0};
-int execchild(void *a, void *b){
+int
+execchild(void *a, void *b)
+{
   int ret;
   ret = exec("ls", execargs);
   if(ret == -1){
@@ -206,11 +226,13 @@ int execchild(void *a, void *b){
   return 0;
 }
 
-int exectest(void){
+int
+exectest(void)
+{
   int ret1, ret2;
   int tid1, tid2;
   char *stack1, *stack2;
-  int thousand = 1000;
+  int thousand = 10;
   ret1 = fork();
   if(!ret1){
     stack1 = sbrk(4096);
@@ -234,7 +256,9 @@ int exectest(void){
   return 0;
 }
 
-int racer(void *count, void *dummy){
+int
+racer(void *count, void *dummy)
+{
   int i;
   int countt = *((int *)count);
   for(i = 0; i < countt; i++){
@@ -243,7 +267,9 @@ int racer(void *count, void *dummy){
   exit();
 }
 
-int memtest(void){
+int 
+memtest(void)
+{
   char *stack1, *stack2;
   stack1 = malloc(4096);
   stack2 = malloc(4096);
@@ -264,12 +290,43 @@ int memtest(void){
   return 0;
 }
 
-int main(void){ memtest1();
-  jointest();
-  jointest1();
-  waitjointest();
-  childwaittest();
+int
+cottonthread(void *a, void *b)
+{
+  printf(1, "%d\n", *((int *)a));
+  cthread_exit();
+}
+
+#define NT 60
+int
+cottontest1(void)
+{
+  cthread_t threads[NT];
+  int arr[NT];
+  int i;
+
+  for (i = 0; i < NT; i++){
+    arr[i] = i;
+    cthread_create(&threads[i], cottonthread, (void *)&arr[i], 0);
+  }
+  
+  for (i = 0; i < NT; i++){
+    cthread_join(&threads[i]);
+  }
+
+  return 0;
+}
+
+int 
+main(void)
+{
+  //memtest1();
+  //jointest();
+  //jointest1();
+  //waitjointest();
+  //childwaittest();
   exectest();
-  memtest();
+  //memtest();
+  //cottontest1();
   exit();
 }

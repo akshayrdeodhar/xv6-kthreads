@@ -33,7 +33,7 @@ sys_clone(void)
     return -1;
   if (argint(4, &flags) < 0)
     return -1;
-  if (((uint)stack) > KERNBASE) // passing bad stack
+  if (((uint)stack) > KERNBASE || ((uint)(stack - 4096)) >= KERNBASE) // passing bad stack
     return -1;
 
   return clone(fn, arg1, arg2, stack, flags);

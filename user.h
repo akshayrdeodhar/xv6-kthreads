@@ -39,3 +39,13 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+// ucthreads.c
+typedef struct{
+  int pid;
+  char *stack;
+}cthread_t;
+int cthread_create(cthread_t *thread, int (*fn)(void *, void *), void *arg1, void *arg2);
+int cthread_cut(cthread_t *thread);
+int cthread_join(cthread_t *thread);
+void cthread_exit(void) __attribute__((noreturn));

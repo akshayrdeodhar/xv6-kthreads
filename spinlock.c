@@ -26,7 +26,6 @@ acquire(struct spinlock *lk)
 {
   pushcli(); // disable interrupts to avoid deadlock.
   if(holding(lk)) {
-    cprintf("In kernel, process: %s, lock: %s\n", myproc()->name, lk->name);
     panic("acquire");
   }
 

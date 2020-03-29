@@ -126,9 +126,9 @@ exec(char *path, char **argv)
       break;
     }
   }
+  curproc->process->threadcount = 0;
   release(&ptable.lock);
 
-  curproc->pid = curproc->tgid;
   curproc->process = curproc;
   curproc->threadcount = 1;
   initlock(&curproc->vlock, "valock");
