@@ -397,21 +397,57 @@ tickettest(void)
   return 0;
 }
 
+int
+incracer(void *a, void *b)
+{
+  int *x = (int *)a;
+  lock_t *lk = (lock_t *)b;
+  lock_acquire(lk);
+  *x += 1;
+  lock_release(lk);
+  cthread_exit();
+}
+
+int
+racetest(void){
+  cthread_t threads[NT];
+  int i;
+  int val = 0;
+  lock_t lock;
+  lock_init(&lock);
+
+  for (i = 0; i < NT; i++){
+    cthread_create(&threads[i], incracer, (void *)&val, (void *)&lock);
+  }
+  
+  for (i = 0; i < NT; i++){
+    cthread_join(&threads[i]);
+  }
+
+  if(val != NT){
+    printf(1, "racetest failed\n");
+  }else{
+    printf(1, "racetest succeeded\n");
+  }
+  return 0;
+}
+
 
 
 int 
 main(void)
 {
-  //memtest1();
-  //jointest();
-  //jointest1();
-  //waitjointest();
-  //childwaittest();
-  //exectest();
-  //memtest();
-  //cottontest1();
-  //twoexectest();
-  //toomanythreadstest();
+  memtest1();
+  jointest();
+  jointest1();
+  waitjointest();
+  childwaittest();
+  exectest();
+  memtest();
+  cottontest1();
+  twoexectest();
+  toomanythreadstest();
   tickettest();
+  racetest();
   exit();
 }
