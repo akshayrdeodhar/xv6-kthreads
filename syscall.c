@@ -13,38 +13,49 @@
 // Arguments on the stack, from the user call to the C
 // library system call function. The saved user %esp points
 // to a saved program counter, and then the first argument.
-
+//
 // Fetch the int at addr from the current process.
-// proc->process->vlock must be held while calling function
 int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->process->sz || addr+4 > curproc->process->sz)
+  acquire(&curproc->process->vlock);
+  if(addr >= curproc->process->sz || addr+4 > curproc->process->sz){
+    release(&curproc->process->vlock);
     return -1;
+  }
   *ip = *(int*)(addr);
+  release(&curproc->process->vlock);
+
   return 0;
 }
 
 // Fetch the nul-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
 // Returns length of string, not including nul.
-// proc->process->vlock must be held while calling function
 int
 fetchstr(uint addr, char **pp)
 {
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->process->sz)
+  // this check is useless, check again before deref
+
+  acquire(&curproc->process->vlock);
+  if(addr >= curproc->process->sz){
+    release(&curproc->process->vlock);
     return -1;
+  }
   *pp = (char*)addr;
   ep = (char*)curproc->process->sz;
   for(s = *pp; s < ep; s++){
-    if(*s == 0)
+    if(*s == 0){
+      release(&curproc->process->vlock);
       return s - *pp;
+    }
   }
+  release(&curproc->process->vlock);
   return -1;
 }
 
@@ -58,7 +69,6 @@ argint(int n, int *ip)
 // Fetch the nth word-sized system call argument as a pointer
 // to a block of memory of size bytes.  Check that the pointer
 // lies within the process address space.
-// proc->process->vlock must be held while calling
 int
 argptr(int n, char **pp, int size)
 {
@@ -67,10 +77,14 @@ argptr(int n, char **pp, int size)
  
   if(argint(n, &i) < 0)
     return -1;
+  // this check is technically useless, check again before deref, atomically
+  acquire(&curproc->process->vlock);
   if(size < 0 || (uint)i >= curproc->process->sz || (uint)i+size > curproc->process->sz) {
+    release(&curproc->process->vlock);
     return -1;
   }
   *pp = (char*)i;
+  release(&curproc->process->vlock);
   return 0;
 }
 

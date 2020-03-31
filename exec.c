@@ -143,7 +143,7 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-  initlock(&curproc->vlock, "valock");
+  initlock(&curproc->vlock, "vlock");
 
   // Commit to the user image.
 

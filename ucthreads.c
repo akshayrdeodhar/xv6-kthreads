@@ -10,7 +10,7 @@ int
 cthread_create(cthread_t *thread, int (*fn)(void *, void *), 
 	       void *arg1, void *arg2)
 {
-  thread->stack = malloc(PGSIZE) + PGSIZE;
+  thread->stack = (char *)malloc(PGSIZE);
   if(thread->stack == 0){
     return -1;
   }
@@ -23,7 +23,7 @@ cthread_create(cthread_t *thread, int (*fn)(void *, void *),
 
   //*(thread_stack - 12) = exit;
 
-  thread->pid = clone(fn, arg1, arg2, thread->stack, 0);
+  thread->pid = clone(fn, arg1, arg2, thread->stack + PGSIZE, 0);
   if(thread->pid == -1){
     return -1;
   }

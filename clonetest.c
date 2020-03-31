@@ -1,6 +1,7 @@
 #include "types.h"
 #include "stat.h"
 #include "user.h"
+#include "fcntl.h"
 
 int
 memtestchild(void *x, void *y)
@@ -397,14 +398,18 @@ tickettest(void)
   return 0;
 }
 
+#define TIMES 1000
 int
 incracer(void *a, void *b)
 {
   int *x = (int *)a;
+  int i;
   lock_t *lk = (lock_t *)b;
-  lock_acquire(lk);
-  *x += 1;
-  lock_release(lk);
+  for(i = 0; i < 1000; i++){
+    lock_acquire(lk);
+    *x += 1;
+    lock_release(lk);
+  }
   cthread_exit();
 }
 
@@ -424,7 +429,7 @@ racetest(void){
     cthread_join(&threads[i]);
   }
 
-  if(val != NT){
+  if(val != NT * TIMES){
     printf(1, "racetest failed\n");
   }else{
     printf(1, "racetest succeeded\n");
@@ -432,12 +437,120 @@ racetest(void){
   return 0;
 }
 
+int 
+wayvard_child(void *time, void *flag)
+{
+  int *x, *y;
+  x = (int *)time;
+  y = (int *)flag;
+  sleep(*x);
+  *y = 1;
+  exit();
+}
+
+int 
+childkilltest(void)
+{
+  cthread_t child;
+  int count = 1000;
+  int value = 0;
+  int pid;
+  pid = cthread_create(&child, wayvard_child, (void *)count, (void *)value);
+  kill(pid);
+  join(pid);
+  if(value)
+    printf(1, "childkilltest failed\n");
+  else
+    printf(1, "childkilltest suceeded\n");
+  return 0;
+}
+
+// T1 increases process size
+// T2 checks arguments of a system call, finds them to be fine
+// T1 decreases the process size
+// T2 dereferences the argument (which is a buffer), and gets killed due to out
+// of bounds access
+
+struct baton{
+  int turn;
+  lock_t lock;
+};
+#define BUFFERSIZE (4096 * 4)
+
+int
+vmmessfunc(void *a, void *b){
+  char *buf = (char *)b;
+  char *flag = (char *)a;
+  int fp;
+  int ret;
+  fp = open("data.bin", O_RDONLY);
+  while(!(*flag));
+  ret = read(fp, buf, BUFFERSIZE);
+
+  if(ret == -1)
+    printf(1, "vmsynctest succeeded\n");
+  
+  cthread_exit();
+  close(fp);
+}
+
+int
+vmsynctest(void)
+{
+  char *stack = sbrk(4096);
+  char *buf = sbrk(BUFFERSIZE);
+  int ret;
+  char flag = 0;
+  int fp;
+  memset(buf, '0', BUFFERSIZE);
+  fp = open("data.bin", O_CREATE | O_WRONLY);
+  write(fp, buf, BUFFERSIZE);
+  memset(buf, '1', BUFFERSIZE);
+  ret = clone(vmmessfunc, (void *)&flag, (void *)buf, stack + 4096, 0);
+  flag = 1;
+  sbrk(-BUFFERSIZE); 
+  join(ret);
+  close(fp);
+  return 0;
+}
+
+int
+checker(void *a, void *b){
+  char *buf = (char *)a;
+  char *ch = (char *)b;
+  int i;
+  for(i = 0; i < 20000; ++i){
+     if(buf[i] != '0'){
+       printf(1, "vmemtest failed at %d\n", i);
+       *ch = 1;
+       break;
+     }
+  }
+  exit();
+}
+
+int
+vmemtest(void){
+  char *buffer;
+  buffer = malloc(20000);
+  memset(buffer, '0', 20000);
+  char ch = 0;
+  cthread_t thread;
+  cthread_create(&thread, checker, (void *)buffer, (void *)&ch);
+  cthread_join(&thread);
+  if(!ch)
+    printf(1, "vmemtest succeeded\n");
+  free(buffer);
+  return 0;
+}
+  
+  
 
 
 int 
 main(void)
 {
-  memtest1();
+  /*memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -449,5 +562,8 @@ main(void)
   toomanythreadstest();
   tickettest();
   racetest();
+  childkilltest();*/
+  //vmemtest();
+  vmsynctest();
   exit();
 }

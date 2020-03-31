@@ -168,6 +168,11 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
+  //TOCTOU: delay the sbrk till check happens
+  int i;
+  for(i = 0; i < 100; i++)
+    yield();
+
   acquire(&curproc->process->vlock);
 
   sz = curproc->process->sz;
@@ -183,10 +188,10 @@ growproc(int n)
     }
   }
   curproc->process->sz = sz;
+  switchuvm(curproc);
 
   release(&curproc->process->vlock);
 
-  switchuvm(curproc);
   return 0;
 }
 
@@ -199,7 +204,7 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
-  struct spinlock *valock;
+  struct spinlock *vlock;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -211,18 +216,18 @@ fork(void)
   np->process = np;
 
   initlock(&np->vlock, "vlock");
-  valock = &(curproc->process->vlock);
-  acquire(valock);
+  vlock = &(curproc->process->vlock);
+  acquire(vlock);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->process->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    release(valock);
+    release(vlock);
     return -1;
   }
   np->sz = curproc->process->sz;
-  release(valock);
+  release(vlock);
 
   np->parent = curproc->process;
   *np->tf = *curproc->tf;
@@ -594,9 +599,8 @@ procdump(void)
   }
 }
 
-// Create a new process copying p as the parent.
+// Create a new thread copying p as the parent.
 // Sets up stack to return as if from system call.
-// Caller must set state of returned proc to RUNNABLE.
 int
 clone(int (*fn)(void *, void*), void *arg1, void *arg2, 
       void *stack, int flags)
@@ -605,43 +609,44 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   uint *sp;
   struct proc *np;
   struct proc *curproc = myproc();
-
+   
   // anyway, not touching anything below stack - 12
+  // lock: this and the stack defererence for setup
   if ((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz)
     return -1;
-
+   
   // page-aligned stack: malloc() does not guarentee,
   // if ((PGROUNDDOWN((int)stack) != (int)stack))
   //  return -1;
-
+   
   //stack += 4096; // top of the stack
-
+   
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
-
+   
   // Thread group
   np->tgid = curproc->tgid;
   np->process = curproc->process;
-
+   
   initlock(&np->vlock, "vlock");
-  struct spinlock *valock = &(curproc->process->vlock);
-  acquire(valock);
+  struct spinlock *vlock = &(curproc->process->vlock);
+  acquire(vlock);
   np->pgdir = curproc->pgdir;
   np->sz = 0;
-  release(valock);
-
+  release(vlock);
+   
   // one more thread using same address space
   // invariant: when exiting this system call
   // the threadcount will be equal to the number
   // of threads using the pgdir of the thread group
   // leader
   np->threadcount = 0;
-
+   
   np->parent = curproc->parent;
   *np->tf = *curproc->tf;
-
+   
   // lay out the stack for user program
   sp = (uint *)stack;
   sp -= 1;
@@ -650,31 +655,31 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   *sp = (uint)arg1;
   sp -= 1;
   *sp = (uint)0xffffffff; // temperory, should be die()
-
+   
   // In child, begin execution from fn, args are in stack
   np->tf->eip = (uint)fn;
   np->tf->esp = (uint)sp;
-
+   
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
-
+   
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
+   
   pid = np->pid;
-
+   
   acquire(&ptable.lock);
-
+   
   if (curproc->killed) {
     np->state = ZOMBIE;
   } else {
     np->state = RUNNABLE;
     curproc->process->threadcount += 1;
   }
-
+   
   release(&ptable.lock);
-
+   
   return pid;
 }
 
