@@ -454,8 +454,6 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 {
   uint tot, m;
   struct buf *bp;
-  uint *szptr = &myproc()->process->sz;
-  struct spinlock *vlock = &myproc()->process->vlock;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
@@ -470,16 +468,8 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
-    acquire(vlock);
-    if(((uint)dst >= *szptr) || (uint)(dst + m) > *szptr){
-      cprintf("dst: %p dst+m: %p sz: %p\n", dst, dst + m, (char *)*szptr);
-      //release(vlock);
-      //brelse(bp);
-      //return -1;
-    }
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(dst, bp->data + off%BSIZE, m);
-    release(vlock);
     brelse(bp);
   }
   return n;
@@ -493,8 +483,6 @@ writei(struct inode *ip, char *src, uint off, uint n)
 {
   uint tot, m;
   struct buf *bp;
-  uint *szptr = &myproc()->process->sz;
-  struct spinlock *vlock = &myproc()->process->vlock;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
@@ -509,16 +497,9 @@ writei(struct inode *ip, char *src, uint off, uint n)
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
-    acquire(vlock);
-    if(((uint)src >= *szptr) || (uint)(src + m) > *szptr){
-      release(vlock);
-      brelse(bp);
-      return -1;
-    }
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(bp->data + off%BSIZE, src, m);
     log_write(bp);
-    release(vlock);
     brelse(bp);
   }
 

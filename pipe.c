@@ -75,14 +75,10 @@ pipeclose(struct pipe *p, int writable)
 }
 
 //PAGEBREAK: 40
-// lock chain formed: vlock acquired while holding pipe lock- never acquire pipe
-// lock while holding vlock
 int
 pipewrite(struct pipe *p, char *addr, int n)
 {
   int i;
-  uint *szptr = &myproc()->process->sz;
-  struct spinlock *vlock = &myproc()->process->vlock;
 
   acquire(&p->lock);
   for(i = 0; i < n; i++){
@@ -94,16 +90,7 @@ pipewrite(struct pipe *p, char *addr, int n)
       wakeup(&p->nread);
       sleep(&p->nwrite, &p->lock);  //DOC: pipewrite-sleep
     }
-    acquire(vlock);
-    if((uint)(addr + i) < (*szptr)){
-      p->data[p->nwrite++ % PIPESIZE] = addr[i];
-    }
-    else{
-      release(vlock);
-      release(&p->lock);
-      return -1;
-    }
-    release(vlock);
+    p->data[p->nwrite++ % PIPESIZE] = addr[i];
   }
   wakeup(&p->nread);  //DOC: pipewrite-wakeup1
   release(&p->lock);
@@ -114,8 +101,6 @@ int
 piperead(struct pipe *p, char *addr, int n)
 {
   int i;
-  uint *szptr = &myproc()->process->sz;
-  struct spinlock *vlock = &myproc()->process->vlock;
 
   acquire(&p->lock);
   while(p->nread == p->nwrite && p->writeopen){  //DOC: pipe-empty
@@ -125,18 +110,11 @@ piperead(struct pipe *p, char *addr, int n)
     }
     sleep(&p->nread, &p->lock); //DOC: piperead-sleep
   }
-  acquire(vlock);
-  if(((uint)addr >= *szptr) || (uint)(addr + n) > *szptr){
-    release(vlock);
-    release(&p->lock);
-    return -1;
-  }
   for(i = 0; i < n; i++){  //DOC: piperead-copy
     if(p->nread == p->nwrite)
       break;
     addr[i] = p->data[p->nread++ % PIPESIZE];
   }
-  release(vlock);
   wakeup(&p->nwrite);  //DOC: piperead-wakeup
   release(&p->lock);
   return i;
