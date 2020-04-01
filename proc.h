@@ -52,6 +52,7 @@ struct proc {
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
+  struct spinlock cwdlock;
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
@@ -69,3 +70,5 @@ extern struct table ptable;
 //   fixed-size stack
 //   expandable heap
 
+void *copy_from_user(void *dst, const void *src, uint n);
+void *copy_to_user(void *dst, const void *src, uint n);

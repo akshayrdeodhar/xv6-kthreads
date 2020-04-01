@@ -33,6 +33,8 @@ exec(char *path, char **argv)
   if(curproc != curproc->process){
     curproc->threadcount = curproc->process->threadcount;
     curproc->process->threadcount = 0;
+    curproc->cwd = curproc->process->cwd;
+    curproc->process->cwd = 0;
     curproc->process->pid = curproc->pid;
     curproc->pid = curproc->tgid;
     curproc->process = curproc;
@@ -80,7 +82,7 @@ exec(char *path, char **argv)
   pgdir = 0;
 
   // Check ELF header
-  if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
+  if(readi(ip, (char*)&elf, 0, sizeof(elf), 0) != sizeof(elf))
     goto bad;
   if(elf.magic != ELF_MAGIC)
     goto bad;
@@ -91,7 +93,7 @@ exec(char *path, char **argv)
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
+    if(readi(ip, (char*)&ph, off, sizeof(ph), 0) != sizeof(ph))
       goto bad;
     if(ph.type != ELF_PROG_LOAD)
       continue;

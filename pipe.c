@@ -97,10 +97,12 @@ pipewrite(struct pipe *p, char *addr, int n)
   return n;
 }
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 int
 piperead(struct pipe *p, char *addr, int n)
 {
   int i;
+  //int bytes, chunk1, chunk2;
 
   acquire(&p->lock);
   while(p->nread == p->nwrite && p->writeopen){  //DOC: pipe-empty
@@ -110,6 +112,16 @@ piperead(struct pipe *p, char *addr, int n)
     }
     sleep(&p->nread, &p->lock); //DOC: piperead-sleep
   }
+  /*bytes = MIN(p->nwrite - p->nread, n);
+  if(bytes > (PIPESIZE - (p->nread % PIPESIZE))){
+    chunk1 = PIPESIZE - (p->nread % PIPESIZE);
+    chunk2 = bytes - chunk1;
+  }else{
+    chunk1 = bytes;
+    chunk2 = 0;
+  }
+  memmove((void *)addr, (void *)&p->data[p->nread % PIPESIZE], chunk1);
+  memmove((void *)(addr + chunk1), (void *)&p->data, chunk2);*/
   for(i = 0; i < n; i++){  //DOC: piperead-copy
     if(p->nread == p->nwrite)
       break;

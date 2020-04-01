@@ -543,10 +543,53 @@ vmemtest(void){
   free(buffer);
   return 0;
 }
+
+#define BUF 1024
+
+int 
+cwdchild(void *a, void *b)
+{
+  char *buf;
+  int fp;
+  buf = (char *)malloc(BUF);
+  memset(buf, '0', BUF);
+  mkdir("testdir");
+  chdir("testdir");
+  fp = open("cwdtest", O_CREATE | O_WRONLY);
+  if(fp == -1)
+    printf(1, "unable to create 'cwdtest'\n");
+  write(fp, buf, BUF);
+  free(buf);
+  close(fp);
+  exit();
+}
+
+int 
+cwdsynctest(void)
+{
+  char *stack = sbrk(4096);
+  int ret;
+  int fp;
+  
+  ret = clone(cwdchild, 0, 0, stack + 4096, 0);
+  if(ret == -1)
+    printf(1, "unable to clone\n");
+  join(ret);
+  fp = open("cwdtest", O_RDONLY);
+  if(fp == -1){
+    printf(1, "cwdsynctest failed\n");
+    chdir("testdir");
+    unlink("cwdtest");
+    chdir("../");
+    unlink("testdir");
+  }else {
+    close(fp);
+    printf(1, "cwdsynctest succeeded\n");
+  }
+  return 0;
+}
   
   
-
-
 int 
 main(void)
 {
@@ -562,8 +605,9 @@ main(void)
   toomanythreadstest();
   tickettest();
   racetest();
-  childkilltest();*/
-  //vmemtest();
+  childkilltest();
+  vmemtest();*/
   vmsynctest();
+  //cwdsynctest();
   exit();
 }

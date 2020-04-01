@@ -176,7 +176,7 @@ isdirempty(struct inode *dp)
   struct dirent de;
 
   for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
-    if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if(readi(dp, (char*)&de, off, sizeof(de), 0) != sizeof(de))
       panic("isdirempty: readi");
     if(de.inum != 0)
       return 0;
@@ -220,7 +220,7 @@ sys_unlink(void)
   }
 
   memset(&de, 0, sizeof(de));
-  if(writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+  if(writei(dp, (char*)&de, off, sizeof(de), 0) != sizeof(de))
     panic("unlink: writei");
   if(ip->type == T_DIR){
     dp->nlink--;
@@ -376,7 +376,7 @@ int
 sys_chdir(void)
 {
   char *path;
-  struct inode *ip;
+  struct inode *ip, *oldwd;
   struct proc *curproc = myproc();
   
   begin_op();
@@ -391,9 +391,17 @@ sys_chdir(void)
     return -1;
   }
   iunlock(ip);
-  iput(curproc->cwd);
+
+  acquire(&curproc->process->cwdlock);
+  oldwd = curproc->process->cwd;
+  release(&curproc->process->cwdlock);
+  
+  iput(oldwd);
   end_op();
-  curproc->cwd = ip;
+
+  acquire(&curproc->process->cwdlock);
+  curproc->process->cwd = ip;
+  release(&curproc->process->cwdlock);
   return 0;
 }
 

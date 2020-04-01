@@ -146,7 +146,10 @@ userinit(void)
   p->tf->eip = 0;  // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
+  initlock(&p->cwdlock, "cwdlock");
+  acquire(&p->cwdlock);
   p->cwd = namei("/");
+  release(&p->cwdlock);
 
 
   // this assignment to p->state lets other cores
@@ -205,6 +208,7 @@ fork(void)
   struct proc *np;
   struct proc *curproc = myproc();
   struct spinlock *vlock;
+  struct inode *cwd;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -238,7 +242,16 @@ fork(void)
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
+  
+  acquire(&curproc->process->cwdlock);
+  cwd = curproc->process->cwd;
+  release(&curproc->process->cwdlock);
+
+  initlock(&np->cwdlock, "cwdlock");
+  acquire(&np->cwdlock);
+  np->cwd = idup(cwd);
+  release(&np->cwdlock);
+
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
@@ -263,6 +276,7 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+  int threadcount;
 
   if(curproc == initproc)
     panic("init exiting");
@@ -275,10 +289,18 @@ exit(void)
     }
   }
 
-  begin_op();
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = 0;
+  acquire(&ptable.lock);
+  threadcount = curproc->process->threadcount;
+  release(&ptable.lock);
+  if(threadcount == 1){
+    // if threadcount is 1, 
+    // the 1 thread is in this syscall
+    // and we may proceed without holding locks
+    begin_op();
+    iput(curproc->process->cwd);
+    end_op();
+    curproc->cwd = 0;
+  }
 
   acquire(&ptable.lock);
 
@@ -356,6 +378,8 @@ wait(void)
     if(p->state == ZOMBIE){
       if(p->pid == p->tgid && p->process == p){
         freevm(p->pgdir);
+
+	// process is dead, so access without locks is OK
       }
       kfree(p->kstack);
       p->kstack = 0;
@@ -612,8 +636,10 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
    
   // anyway, not touching anything below stack - 12
   // lock: this and the stack defererence for setup
-  if ((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz)
+  if((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz) {
+    cprintf("stack: %p, sz: %p\n", stack, curproc->process->sz);
     return -1;
+  }
    
   // page-aligned stack: malloc() does not guarentee,
   // if ((PGROUNDDOWN((int)stack) != (int)stack))
@@ -663,7 +689,7 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
+  np->cwd = 0;
    
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
    
@@ -762,3 +788,39 @@ join(int pid)
   release(&ptable.lock);
   return pid;
 }
+
+void *
+copy_from_user(void *dst, const void *src, uint n)
+{
+  void *dest;
+  struct spinlock *vlock;
+  struct proc *p = myproc();
+  vlock = &p->process->vlock;
+  acquire(vlock);
+  if((uint)src >= p->process->sz || (uint)(src + n) > p->process->sz){
+    release(vlock);
+    return (void *)0;
+  }
+  dest = memmove(dst, src, n);
+  release(vlock);
+  return dest;
+}
+
+void *
+copy_to_user(void *dst, const void *src, uint n)
+{
+  void *dest;
+  struct spinlock *vlock;
+  struct proc *p = myproc();
+  vlock = &p->process->vlock;
+  acquire(vlock);
+  if((uint)dst >= p->process->sz || (uint)(dst + n) > p->process->sz){
+    release(vlock);
+    return (void *)0;
+  }
+  dest = memmove(dst, src, n);
+  release(vlock);
+  return dest;
+}
+
+
