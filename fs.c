@@ -453,7 +453,7 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, char *dst, uint off, uint n, char user)
 {
-  uint tot, m, ret;
+  uint tot, m;
   struct buf *bp;
 
   if(ip->type == T_DEV){
@@ -471,8 +471,7 @@ readi(struct inode *ip, char *dst, uint off, uint n, char user)
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
     if(user){
-      ret = (uint)copy_to_user(dst, bp->data + off%BSIZE, m);
-      if(!ret){
+      if(m && (copy_to_user(dst, bp->data + off%BSIZE, m) == 0)){
         brelse(bp);
 	return -1;
       }
@@ -492,7 +491,6 @@ writei(struct inode *ip, char *src, uint off, uint n, char user)
 {
   uint tot, m;
   struct buf *bp;
-  uint ret;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
@@ -509,8 +507,7 @@ writei(struct inode *ip, char *src, uint off, uint n, char user)
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
     if(user){
-      ret = (uint)copy_from_user(bp->data + off%BSIZE, src, m);
-      if(!ret){
+      if(m && (copy_from_user(bp->data + off%BSIZE, src, m) == 0)){
         brelse(bp);
 	return -1;
       }

@@ -80,11 +80,10 @@ pipeclose(struct pipe *p, int writable)
 int
 pipewrite(struct pipe *p, char *addr, int n)
 {
-  cprintf("CALLED by: %d\n", myproc()->pid);
-  int chunk1, chunk2, bytes;
   int i;
+  int chunk1, chunk2, bytes;
   acquire(&p->lock);
-  for(i = 0; i < n; /*i++*/){
+  for(i = 0; i < n;){
     while(p->nwrite == p->nread + PIPESIZE){  //DOC: pipewrite-full
       if(p->readopen == 0 || myproc()->killed){
         release(&p->lock);
@@ -100,8 +99,16 @@ pipewrite(struct pipe *p, char *addr, int n)
       chunk1 = bytes;
     }
     chunk2 = bytes - chunk1;
-    memmove((void *)&p->data[p->nwrite % PIPESIZE], (void *)&addr[i], chunk1);
-    memmove((void *)p->data, (void *)&addr[i + chunk1], chunk2);
+
+    if(chunk1 && (copy_from_user((void *)&p->data[p->nwrite % PIPESIZE], (void *)&addr[i], chunk1) == 0)){
+      release(&p->lock);
+      return -1;
+    }
+    if(chunk2 && (copy_from_user((void *)p->data, (void *)&addr[i + chunk1], chunk2) == 0)){
+      release(&p->lock);
+      return -1;
+    }
+
     p->nwrite += bytes;
     i += bytes;
     //p->data[p->nwrite++ % PIPESIZE] = addr[i];
@@ -132,14 +139,15 @@ piperead(struct pipe *p, char *addr, int n)
     chunk1 = bytes;
   }
   chunk2 = bytes - chunk1;
-  memmove((void *)addr, (void *)&p->data[p->nread % PIPESIZE], chunk1);
-  memmove((void *)(addr + chunk1), (void *)&p->data, chunk2);
+  if(chunk1 && (copy_to_user((void *)addr, (void *)&p->data[p->nread % PIPESIZE], chunk1) == 0)){
+    release(&p->lock);
+    return -1;
+  }
+  if(chunk2 && (copy_to_user((void *)(addr + chunk1), (void *)&p->data, chunk2) == 0)){
+    release(&p->lock);
+    return -1;
+  }
   p->nread += bytes;
-  /*for(i = 0; i < n; i++){  //DOC: piperead-copy
-    if(p->nread == p->nwrite)
-      break;
-    addr[i] = p->data[p->nread++ % PIPESIZE];
-  }*/
   wakeup(&p->nwrite);  //DOC: piperead-wakeup
   release(&p->lock);
   return bytes;
