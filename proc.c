@@ -823,4 +823,20 @@ copy_to_user(void *dst, const void *src, uint n)
   return dest;
 }
 
-
+int
+copy_str_from_user(char *dst, const char *src, uint limit)
+{
+  struct spinlock *vlock;
+  struct proc *p = myproc();
+  vlock = &p->process->vlock;
+  acquire(vlock);
+  int i;
+  for (i = 0; (uint)src < p->process->sz && i < limit && (*dst++ = *src++); i++);
+  if((uint)src == p->process->sz){
+    release(vlock);
+    return -1;
+  }
+  release(vlock);
+  return i;
+}
+    

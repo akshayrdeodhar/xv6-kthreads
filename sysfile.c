@@ -16,6 +16,8 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define NUSERSTRING 512
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -124,12 +126,17 @@ sys_link(void)
 {
   char name[DIRSIZ], *new, *old;
   struct inode *dp, *ip;
+  char sold[NUSERSTRING];
+  char snew[NUSERSTRING];
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
     return -1;
+  if(copy_str_from_user(sold, old, NUSERSTRING) < 0
+     || copy_str_from_user(snew, new, NUSERSTRING) < 0)
+    return -1;
 
   begin_op();
-  if((ip = namei(old)) == 0){
+  if((ip = namei(sold)) == 0){
     end_op();
     return -1;
   }
@@ -145,7 +152,7 @@ sys_link(void)
   iupdate(ip);
   iunlock(ip);
 
-  if((dp = nameiparent(new, name)) == 0)
+  if((dp = nameiparent(snew, name)) == 0)
     goto bad;
   ilock(dp);
   if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
@@ -192,12 +199,15 @@ sys_unlink(void)
   struct dirent de;
   char name[DIRSIZ], *path;
   uint off;
+  char spath[NUSERSTRING];
 
   if(argstr(0, &path) < 0)
     return -1;
+  if(copy_str_from_user(spath, path, NUSERSTRING) < 0)
+    return -1;
 
   begin_op();
-  if((dp = nameiparent(path, name)) == 0){
+  if((dp = nameiparent(spath, name)) == 0){
     end_op();
     return -1;
   }
@@ -293,20 +303,23 @@ sys_open(void)
   int fd, omode;
   struct file *f;
   struct inode *ip;
+  char spath[NUSERSTRING];
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
+    return -1;
+  if(copy_str_from_user(spath, path, NUSERSTRING) < 0)
     return -1;
 
   begin_op();
 
   if(omode & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
+    ip = create(spath, T_FILE, 0, 0);
     if(ip == 0){
       end_op();
       return -1;
     }
   } else {
-    if((ip = namei(path)) == 0){
+    if((ip = namei(spath)) == 0){
       end_op();
       return -1;
     }
@@ -341,9 +354,12 @@ sys_mkdir(void)
 {
   char *path;
   struct inode *ip;
+  char spath[NUSERSTRING];
 
   begin_op();
-  if(argstr(0, &path) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
+  if(argstr(0, &path) < 0 || 
+     copy_str_from_user(spath, path, NUSERSTRING) < 0 ||
+     (ip = create(spath, T_DIR, 0, 0)) == 0){
     end_op();
     return -1;
   }
@@ -358,12 +374,14 @@ sys_mknod(void)
   struct inode *ip;
   char *path;
   int major, minor;
+  char spath[NUSERSTRING];
 
   begin_op();
   if((argstr(0, &path)) < 0 ||
      argint(1, &major) < 0 ||
      argint(2, &minor) < 0 ||
-     (ip = create(path, T_DEV, major, minor)) == 0){
+     copy_str_from_user(spath, path, NUSERSTRING) < 0 ||
+     (ip = create(spath, T_DEV, major, minor)) == 0){
     end_op();
     return -1;
   }
@@ -378,9 +396,12 @@ sys_chdir(void)
   char *path;
   struct inode *ip, *oldwd;
   struct proc *curproc = myproc();
+  char spath[NUSERSTRING];
   
   begin_op();
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
+  if(argstr(0, &path) < 0 || 
+     copy_str_from_user(spath, path, NUSERSTRING) < 0 ||
+     (ip = namei(spath)) == 0){
     end_op();
     return -1;
   }
@@ -411,8 +432,11 @@ sys_exec(void)
   char *path, *argv[MAXARG];
   int i;
   uint uargv, uarg;
+  char spath[NUSERSTRING];
 
-  if(argstr(0, &path) < 0 || argint(1, (int*)&uargv) < 0){
+  if(argstr(0, &path) < 0 || 
+     argint(1, (int*)&uargv) < 0 ||
+     copy_str_from_user(spath, path, NUSERSTRING) < 0){
     return -1;
   }
   memset(argv, 0, sizeof(argv));
@@ -428,7 +452,7 @@ sys_exec(void)
     if(fetchstr(uarg, &argv[i]) < 0)
       return -1;
   }
-  return exec(path, argv);
+  return exec(spath, argv);
 }
 
 int

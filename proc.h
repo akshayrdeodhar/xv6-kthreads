@@ -72,3 +72,4 @@ extern struct table ptable;
 
 void *copy_from_user(void *dst, const void *src, uint n);
 void *copy_to_user(void *dst, const void *src, uint n);
+int copy_str_from_user(char *dst, const char *src, uint limit);
