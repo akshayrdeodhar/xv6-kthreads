@@ -588,12 +588,64 @@ cwdsynctest(void)
   }
   return 0;
 }
+
+#define SMALLBUFFERSIZE 512
+
+struct container{
+  char *buffer;
+  int *pipefd;
+};
+
+int
+clonevmmessfunc(void *a, void *b){
+  char *flag = (char *)a;
+  int fp;
+  int ret;
+  struct container *x = (struct container *)b;
+  char *buf = x->buffer;
+  int *pipefd = x->pipefd;
+  while(!(*flag));
+  ret = read(pipefd[0], buf, SMALLBUFFERSIZE);
+
+  if(ret == -1)
+    printf(1, "clonevmsynctest succeeded\n");
   
+  cthread_exit();
+  close(fp);
+}
+
+// To be performed while having the TOCTOU blocks in proc.c and somewhere else
+// uncommented
+int
+pipevmsynctest(void)
+{
+  char *stack = sbrk(4096);
+  char *buf = sbrk(SMALLBUFFERSIZE);
+  int ret;
+  char flag = 0;
+  int pipefd[2];
+
+  struct container cont;
+  cont.buffer = buf;
+  cont.pipefd = pipefd;
+
+  memset(buf, '0', SMALLBUFFERSIZE);
+  pipe(pipefd);
+  write(pipefd[1], buf, SMALLBUFFERSIZE);
+  memset(buf, '1', SMALLBUFFERSIZE);
+  ret = clone(clonevmmessfunc, (void *)&flag, (void *)&cont, stack + 4096, 0);
+  flag = 1;
+  sbrk(-SMALLBUFFERSIZE); 
+  join(ret);
+  close(pipefd[0]);
+  close(pipefd[1]);
+  return 0;
+}
   
 int 
 main(void)
 {
-  memtest1();
+  /*memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -608,6 +660,7 @@ main(void)
   childkilltest();
   vmemtest();
   vmsynctest();
-  cwdsynctest();
+  cwdsynctest();*/
+  pipevmsynctest();
   exit();
 }
