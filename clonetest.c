@@ -405,7 +405,7 @@ incracer(void *a, void *b)
   int *x = (int *)a;
   int i;
   lock_t *lk = (lock_t *)b;
-  for(i = 0; i < 1000; i++){
+  for(i = 0; i < TIMES; i++){
     lock_acquire(lk);
     *x += 1;
     lock_release(lk);
@@ -593,7 +593,7 @@ cwdsynctest(void)
 int 
 main(void)
 {
-  /*memtest1();
+  memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -602,12 +602,12 @@ main(void)
   memtest();
   cottontest1();
   twoexectest();
-  toomanythreadstest();
+  //toomanythreadstest();
   tickettest();
   racetest();
   childkilltest();
-  vmemtest();*/
+  vmemtest();
   vmsynctest();
-  //cwdsynctest();
+  cwdsynctest();
   exit();
 }

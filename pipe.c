@@ -74,14 +74,17 @@ pipeclose(struct pipe *p, int writable)
     release(&p->lock);
 }
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 //PAGEBREAK: 40
 int
 pipewrite(struct pipe *p, char *addr, int n)
 {
+  cprintf("CALLED by: %d\n", myproc()->pid);
+  int chunk1, chunk2, bytes;
   int i;
-
   acquire(&p->lock);
-  for(i = 0; i < n; i++){
+  for(i = 0; i < n; /*i++*/){
     while(p->nwrite == p->nread + PIPESIZE){  //DOC: pipewrite-full
       if(p->readopen == 0 || myproc()->killed){
         release(&p->lock);
@@ -90,19 +93,29 @@ pipewrite(struct pipe *p, char *addr, int n)
       wakeup(&p->nread);
       sleep(&p->nwrite, &p->lock);  //DOC: pipewrite-sleep
     }
-    p->data[p->nwrite++ % PIPESIZE] = addr[i];
+    bytes = MIN(p->nread + PIPESIZE - p->nwrite, n - i);
+    if(bytes > (PIPESIZE - (p->nwrite % PIPESIZE))){
+      chunk1 = PIPESIZE - (p->nwrite % PIPESIZE);
+    }else{
+      chunk1 = bytes;
+    }
+    chunk2 = bytes - chunk1;
+    memmove((void *)&p->data[p->nwrite % PIPESIZE], (void *)&addr[i], chunk1);
+    memmove((void *)p->data, (void *)&addr[i + chunk1], chunk2);
+    p->nwrite += bytes;
+    i += bytes;
+    //p->data[p->nwrite++ % PIPESIZE] = addr[i];
   }
   wakeup(&p->nread);  //DOC: pipewrite-wakeup1
   release(&p->lock);
   return n;
 }
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 int
 piperead(struct pipe *p, char *addr, int n)
 {
-  int i;
-  //int bytes, chunk1, chunk2;
+  //int i;
+  int bytes, chunk1, chunk2;
 
   acquire(&p->lock);
   while(p->nread == p->nwrite && p->writeopen){  //DOC: pipe-empty
@@ -112,22 +125,22 @@ piperead(struct pipe *p, char *addr, int n)
     }
     sleep(&p->nread, &p->lock); //DOC: piperead-sleep
   }
-  /*bytes = MIN(p->nwrite - p->nread, n);
+  bytes = MIN(p->nwrite - p->nread, n);
   if(bytes > (PIPESIZE - (p->nread % PIPESIZE))){
     chunk1 = PIPESIZE - (p->nread % PIPESIZE);
-    chunk2 = bytes - chunk1;
   }else{
     chunk1 = bytes;
-    chunk2 = 0;
   }
+  chunk2 = bytes - chunk1;
   memmove((void *)addr, (void *)&p->data[p->nread % PIPESIZE], chunk1);
-  memmove((void *)(addr + chunk1), (void *)&p->data, chunk2);*/
-  for(i = 0; i < n; i++){  //DOC: piperead-copy
+  memmove((void *)(addr + chunk1), (void *)&p->data, chunk2);
+  p->nread += bytes;
+  /*for(i = 0; i < n; i++){  //DOC: piperead-copy
     if(p->nread == p->nwrite)
       break;
     addr[i] = p->data[p->nread++ % PIPESIZE];
-  }
+  }*/
   wakeup(&p->nwrite);  //DOC: piperead-wakeup
   release(&p->lock);
-  return i;
+  return bytes;
 }

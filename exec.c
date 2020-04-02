@@ -35,6 +35,10 @@ exec(char *path, char **argv)
     curproc->process->threadcount = 0;
     curproc->cwd = curproc->process->cwd;
     curproc->process->cwd = 0;
+    curproc->cwdlock = curproc->process->cwdlock;
+    curproc->sz = curproc->process->sz;
+    curproc->process->sz = 0;
+    curproc->vlock = curproc->process->vlock;
     curproc->process->pid = curproc->pid;
     curproc->pid = curproc->tgid;
     curproc->process = curproc;
