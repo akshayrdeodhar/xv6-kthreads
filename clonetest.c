@@ -641,6 +641,80 @@ pipevmsynctest(void)
   close(pipefd[1]);
   return 0;
 }
+
+typedef struct{
+  lock_t lockt;
+  int threadsready;
+  int parentready;
+}baton;
+
+int 
+tlb_child(void *ready, void *page_p)
+{
+  baton *b = (baton *)ready;
+  char *page = (char *)page_p;
+  int i;
+  /* fill TLB with this entry */
+  for(i = 0; i < 1024; i++){
+    page[0]++;
+  }
+  lock_acquire(&(b->lockt));
+  b->threadsready++;
+  lock_release(&(b->lockt));
+  while(!b->parentready)
+    ;
+  /* check whether TLB entry accessed or new entry */
+  for(i = 0; i < 1024; i++){
+    page[0]--;
+  }
+  lock_acquire(&(b->lockt));
+  b->threadsready--;
+  lock_release(&(b->lockt));
+  exit();
+}
+
+#define TLB_N 1
+#define REPS 10
+int
+tlbtest(void)
+{
+  char *pages[TLB_N];
+  int pid[TLB_N];
+  baton bt;
+  int i;
+  int reps;
+  for(reps = 0; reps < REPS; reps++){
+    bt.threadsready = 0;
+    bt.parentready = 0;
+    lock_init(&bt.lockt);
+    for(i = 0; i < TLB_N; i++){
+      pages[i] = sbrk(4096);
+    }
+    char *page = sbrk(4096);
+    for(i = 0; i < TLB_N; i++){
+      pid[i] = clone(tlb_child, (void *)&bt, (void *)&page[i], (void *)pages[i] + 4096, 0);
+    }
+    while(bt.threadsready != TLB_N)
+      ;
+    /* children have loaded TLB, now invalidate the page */
+    sbrk(-4096);
+    /* allow threads to access the page */
+    bt.parentready = 1;
+    /* wait for threads to die or to access and increment */
+    sleep(5);
+    if(!bt.threadsready){
+      printf(1, "tlbtest failed\n");
+      break;
+    }
+    sbrk(-TLB_N * 4096);
+    for(i = 0; i < TLB_N; i++)
+      join(pid[i]);
+  }
+  if(bt.threadsready)
+    printf(1, "tlbtest succeeded\n");
+  exit();
+}
+
   
 int 
 main(void)
@@ -654,13 +728,14 @@ main(void)
   memtest();
   cottontest1();
   twoexectest();
-  //toomanythreadstest();
+  toomanythreadstest();
   tickettest();
   racetest();
   childkilltest();
   vmemtest();
   vmsynctest();
-  cwdsynctest();*/
-  pipevmsynctest();
+  cwdsynctest();
+  pipevmsynctest();*/
+  tlbtest();
   exit();
 }
