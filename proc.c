@@ -67,7 +67,7 @@ myproc(void) {
 // Send an interrupt to all other CPUs
 // tell them to reload their page tables
 // to be called with interrupts disabled
-static void
+/*static void
 tlbinitiate(void)
 {
   uint apicid;
@@ -75,7 +75,7 @@ tlbinitiate(void)
   //apicid = apicid | 0xffffffff;
   cprintf("I shot them. %d\n", apicid);
   lapicexclbcast(T_TLBFLUSH);
-}
+}*/
 
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
@@ -193,7 +193,7 @@ growproc(int n)
 
   acquire(&curproc->process->vlock);
   // interrupts got disabled here
-  tlbinitiate();
+  //tlbinitiate();
 
   sz = curproc->process->sz;
   if(n > 0){
