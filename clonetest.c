@@ -673,8 +673,8 @@ tlb_child(void *ready, void *page_p)
   exit();
 }
 
-#define TLB_N 1
-#define REPS 1
+#define TLB_N 4
+#define REPS 100
 int
 tlbtest(void)
 {

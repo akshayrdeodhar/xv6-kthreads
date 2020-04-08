@@ -90,18 +90,16 @@ tlbinitiate(void)
   cprintf("I shot them. %d\n", apicid);
   lapicexclbcast(T_TLBFLUSH);
   for(i = 0; i < ncpu; i++){
-    if(cpus[i].apicid != apicid){
+    if(cpus[i].apicid != apicid)
       cpus[i].tlbstate = ACTNEEDED;
-    }else{
+    else
       initiator = i;
-      cpus[i].tlbstate = INITIATOR;
-    }
+    
   }
   for(;;){
     clear = 1;
     for(i = 0; i < ncpu; i++){
       if(cpus[i].apicid != apicid && cpus[i].tlbstate == ACTNEEDED){
-	cprintf("%d: %d\n", i, cpus[i].tlbstate);
         clear = 0;
 	break;
       }
@@ -109,14 +107,12 @@ tlbinitiate(void)
     if(clear)
       break;
   }
-  __sync_synchronize();
 }
 
 static void
 tlbconclude(void)
 {
   initiator = -1;
-  mycpu()->tlbstate = NONE;
   release(&tlblock);
 }
 
@@ -125,10 +121,12 @@ tlbconclude(void)
 void
 tlbhandler(void)
 {
+  struct proc *p;
   mycpu()->tlbstate= NONE;
   acquire(&tlblock);
-  if(mycpu()->proc->process == cpus[initiator].proc->process)
-    lcr3((uint)mycpu()->proc->pgdir);
+  p = myproc();
+  if(p)
+    lcr3(V2P(p->pgdir));
   release(&tlblock);
 }
   
