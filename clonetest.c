@@ -674,7 +674,7 @@ tlb_child(void *ready, void *page_p)
 }
 
 #define TLB_N 1
-#define REPS 10
+#define REPS 1
 int
 tlbtest(void)
 {

@@ -71,6 +71,10 @@ trap(struct trapframe *tf)
     uartintr();
     lapiceoi();
     break;
+  case T_TLBFLUSH:
+    cprintf("I got shot! %d\n", mycpu()->apicid);
+    lapiceoi(); // is this needed? IPI is not I/O device
+    break;
   case T_IRQ0 + 7:
   case T_IRQ0 + IRQ_SPURIOUS:
     cprintf("cpu%d: spurious interrupt at %x:%x\n",
@@ -110,3 +114,5 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
 }
+
+

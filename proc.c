@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "traps.h"
 
 struct table ptable;
 
@@ -60,6 +61,20 @@ myproc(void) {
   p = c->proc;
   popcli();
   return p;
+}
+
+// INCOMPLETE:
+// Send an interrupt to all other CPUs
+// tell them to reload their page tables
+// to be called with interrupts disabled
+static void
+tlbinitiate(void)
+{
+  uint apicid;
+  apicid = mycpu()->apicid;
+  //apicid = apicid | 0xffffffff;
+  cprintf("I shot them. %d\n", apicid);
+  lapicexclbcast(T_TLBFLUSH);
 }
 
 //PAGEBREAK: 32
@@ -172,11 +187,13 @@ growproc(int n)
   struct proc *curproc = myproc();
 
   //TOCTOU: delay the sbrk till check happens
-  int i;
-  for(i = 0; i < 100; i++)
-    yield();
+  //int i;
+  //for(i = 0; i < 100; i++)
+  //  yield();
 
   acquire(&curproc->process->vlock);
+  // interrupts got disabled here
+  tlbinitiate();
 
   sz = curproc->process->sz;
   if(n > 0){
@@ -839,4 +856,4 @@ copy_str_from_user(char *dst, const char *src, uint limit)
   release(vlock);
   return i;
 }
-    
+

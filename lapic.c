@@ -25,7 +25,9 @@
   #define ASSERT     0x00004000   // Assert interrupt (vs deassert)
   #define DEASSERT   0x00000000
   #define LEVEL      0x00008000   // Level triggered
+  #define EDGE       0x00000000   // Edge trigerred
   #define BCAST      0x00080000   // Send to all APICs, including self.
+  #define BCASTEXCL  0x000C0000   // Send to all APICs, excluding self.
   #define BUSY       0x00001000
   #define FIXED      0x00000000
 #define ICRHI   (0x0310/4)   // Interrupt Command [63:32]
@@ -226,4 +228,13 @@ cmostime(struct rtcdate *r)
 
   *r = t1;
   r->year += 2000;
+}
+
+// BCASTEXCL | FIXED | DEASSERT | EDGE | TLBFLUSH
+// Send a edge-triggered, de-assert interrupt to all other processors, with
+// vector number "vector"
+void
+lapicexclbcast(uint vector)
+{
+  lapicw(ICRLO, BCASTEXCL | EDGE | DEASSERT | FIXED | vector);
 }
