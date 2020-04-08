@@ -237,18 +237,38 @@ consoleread(struct inode *ip, char *dst, int n)
 {
   uint target;
   int c;
+  struct proc *curprocess;
+  struct spinlock *vlock;
+  curprocess = myproc()->process;
+  vlock = &curprocess->vlock;
 
   iunlock(ip);
   target = n;
   acquire(&cons.lock);
+  acquire(vlock);
+  if((uint)dst >= curprocess->sz || (uint)(dst + n) > curprocess->sz){
+    release(vlock);
+    release(&cons.lock);
+    ilock(ip);
+    return -1;
+  }
   while(n > 0){
     while(input.r == input.w){
       if(myproc()->killed){
+        release(vlock);
         release(&cons.lock);
         ilock(ip);
         return -1;
       }
+      release(vlock);
       sleep(&input.r, &cons.lock);
+      acquire(vlock);
+      if((uint)dst >= curprocess->sz || (uint)(dst + n) > curprocess->sz){
+	release(vlock);
+	release(&cons.lock);
+	ilock(ip);
+	return -1;
+      }
     }
     c = input.buf[input.r++ % INPUT_BUF];
     if(c == C('D')){  // EOF
@@ -264,6 +284,7 @@ consoleread(struct inode *ip, char *dst, int n)
     if(c == '\n')
       break;
   }
+  release(vlock);
   release(&cons.lock);
   ilock(ip);
 
@@ -274,11 +295,23 @@ int
 consolewrite(struct inode *ip, char *buf, int n)
 {
   int i;
+  struct proc *curprocess;
+  struct spinlock *vlock;
+  curprocess = myproc()->process;
+  vlock = &curprocess->vlock;
 
   iunlock(ip);
   acquire(&cons.lock);
+  acquire(vlock);
+  if((uint)buf >= curprocess->sz || (uint)(buf + n) > curprocess->sz){
+    release(vlock);
+    release(&cons.lock);
+    ilock(ip);
+    return -1;
+  }
   for(i = 0; i < n; i++)
     consputc(buf[i] & 0xff);
+  release(vlock);
   release(&cons.lock);
   ilock(ip);
 
