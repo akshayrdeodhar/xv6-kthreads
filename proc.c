@@ -8,6 +8,9 @@
 #include "proc.h"
 #include "traps.h"
 
+struct spinlock tlblock;
+int initiator;
+
 struct table ptable;
 
 static struct proc *initproc;
@@ -63,6 +66,13 @@ myproc(void) {
   return p;
 }
 
+void
+tlbinit(void)
+{
+  initlock(&tlblock, "tlb");
+  initiator = -1;
+}
+
 // INCOMPLETE:
 // Send an interrupt to all other CPUs
 // tell them to reload their page tables
@@ -71,11 +81,57 @@ static void
 tlbinitiate(void)
 {
   uint apicid;
+  uchar clear;
+  int i;
+  if(initiator != -1)
+    panic("initiator");
+  acquire(&tlblock);
   apicid = mycpu()->apicid;
-  //apicid = apicid | 0xffffffff;
   cprintf("I shot them. %d\n", apicid);
   lapicexclbcast(T_TLBFLUSH);
+  for(i = 0; i < ncpu; i++){
+    if(cpus[i].apicid != apicid){
+      cpus[i].tlbstate = ACTNEEDED;
+    }else{
+      initiator = i;
+      cpus[i].tlbstate = INITIATOR;
+    }
+  }
+  for(;;){
+    clear = 1;
+    for(i = 0; i < ncpu; i++){
+      if(cpus[i].apicid != apicid && cpus[i].tlbstate == ACTNEEDED){
+	cprintf("%d: %d\n", i, cpus[i].tlbstate);
+        clear = 0;
+	break;
+      }
+    }
+    if(clear)
+      break;
+  }
+  __sync_synchronize();
 }
+
+static void
+tlbconclude(void)
+{
+  initiator = -1;
+  mycpu()->tlbstate = NONE;
+  release(&tlblock);
+}
+
+// handle tlb flush interrupt from other processor
+// this is an interrupt handler, no interrupts will hit
+void
+tlbhandler(void)
+{
+  mycpu()->tlbstate= NONE;
+  acquire(&tlblock);
+  if(mycpu()->proc->process == cpus[initiator].proc->process)
+    lcr3((uint)mycpu()->proc->pgdir);
+  release(&tlblock);
+}
+  
 
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
@@ -210,6 +266,7 @@ growproc(int n)
   curproc->process->sz = sz;
   switchuvm(curproc);
 
+  tlbconclude();
   release(&curproc->process->vlock);
 
   return 0;

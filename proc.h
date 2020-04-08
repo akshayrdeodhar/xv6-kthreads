@@ -1,4 +1,7 @@
 // Per-CPU state
+
+typedef enum {INITIATOR, ACTNEEDED, NONE} tlbstate_t;
+
 struct cpu {
   uchar apicid;                // Local APIC ID
   struct context *scheduler;   // swtch() here to enter scheduler
@@ -8,10 +11,13 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   struct proc *proc;           // The process running on this cpu or null
+  tlbstate_t tlbstate;
 };
 
 extern struct cpu cpus[NCPU];
 extern int ncpu;
+
+extern struct spinlock tlblock;
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
@@ -73,3 +79,5 @@ extern struct table ptable;
 void *copy_from_user(void *dst, const void *src, uint n);
 void *copy_to_user(void *dst, const void *src, uint n);
 int copy_str_from_user(char *dst, const char *src, uint limit);
+void tlbinit(void);
+void tlbhandler(void);

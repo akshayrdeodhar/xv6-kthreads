@@ -73,6 +73,7 @@ trap(struct trapframe *tf)
     break;
   case T_TLBFLUSH:
     cprintf("I got shot! %d\n", mycpu()->apicid);
+    tlbhandler();
     lapiceoi(); // is this needed? IPI is not I/O device
     break;
   case T_IRQ0 + 7:
