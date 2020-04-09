@@ -80,33 +80,10 @@ tlbinit(void)
 static void
 tlbinitiate(void)
 {
-  uint apicid;
-  uchar clear;
-  int i;
   if(initiator != -1)
     panic("initiator");
   acquire(&tlblock);
-  apicid = mycpu()->apicid;
-  cprintf("I shot them. %d\n", apicid);
   lapicexclbcast(T_TLBFLUSH);
-  for(i = 0; i < ncpu; i++){
-    if(cpus[i].apicid != apicid)
-      cpus[i].tlbstate = ACTNEEDED;
-    else
-      initiator = i;
-    
-  }
-  for(;;){
-    clear = 1;
-    for(i = 0; i < ncpu; i++){
-      if(cpus[i].apicid != apicid && cpus[i].tlbstate == ACTNEEDED){
-        clear = 0;
-	break;
-      }
-    }
-    if(clear)
-      break;
-  }
 }
 
 static void
@@ -122,7 +99,6 @@ void
 tlbhandler(void)
 {
   struct proc *p;
-  mycpu()->tlbstate= NONE;
   acquire(&tlblock);
   p = myproc();
   if(p)

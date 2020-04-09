@@ -719,7 +719,7 @@ tlbtest(void)
 int 
 main(void)
 {
-  /*memtest1();
+  memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -735,7 +735,7 @@ main(void)
   vmemtest();
   vmsynctest();
   cwdsynctest();
-  pipevmsynctest();*/
+  pipevmsynctest();
   tlbtest();
   exit();
 }
