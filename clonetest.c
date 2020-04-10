@@ -793,21 +793,28 @@ queuetest(void)
 }
 
 #define LIMIT 10
-#define NTIMES 100
+#define NTIMES 10
+#define THREADSN 10
 char buf[LIMIT];
 int next;
 int first;
+int slock_t vallock;
+int data;
 semaphore_t buflock;
 int producer(void *a, void *b)
 {
   semaphore_t *slots = (semaphore_t *)a;
   semaphore_t *items = (semaphore_t *)b;
   int i;
+  int x;
   for(i = 0; i < NTIMES; i++){
+    slock_acquire(&vallock);
+    x = data++;
+    slock_release(&vallock);
     sem_down(slots);
     sem_down(&buflock);
     printf(1, "Producing %d\n", i);
-    buf[next] = i;
+    buf[next] = data;
     next = (next + 1) % LIMIT;
     sem_up(&buflock);
     sem_up(items);
@@ -835,16 +842,23 @@ int
 producerconsumertest(void){
   first = 0;
   next = 0;
+  data = 0;
+  slock_init(&vallock);
   semaphore_t slots;
   semaphore_t items;
-  cthread_t prod, cons;
+  cthread_t prod[THREADSN], cons[THREADSN];
+  int i;
   sem_init(&slots, LIMIT);
   sem_init(&items, 0);
   sem_init(&buflock, 1);
-  cthread_create(&cons, consumer, (void *)&slots, (void *)&items);
-  cthread_create(&prod, producer, (void *)&slots, (void *)&items);
-  cthread_join(&prod);
-  cthread_join(&cons);
+  for(i = 0; i < THREADSN; i++)
+    cthread_create(&cons[i], consumer, (void *)&slots, (void *)&items);
+  for(i = 0; i < THREADSN; i++)
+    cthread_create(&prod[i], producer, (void *)&slots, (void *)&items);
+  for(i = 0; i < THREADSN; i++){
+    cthread_join(&prod);
+    cthread_join(&cons);
+  }
   return 0;
 }
   
