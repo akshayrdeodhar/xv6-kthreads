@@ -712,14 +712,146 @@ tlbtest(void)
   }
   if(bt.threadsready)
     printf(1, "tlbtest succeeded\n");
+  return 0;
+}
+
+int
+condvarchild(void *var, void *b)
+{
+  int *val2 = (int *)b;
+  park(var);
+  *val2 = 1;
+  cthread_exit();
+}
+
+// parent waits for 5 second. The child parks
+// The child should not change the variable till
+// it is unparked
+int
+parkunparktest(void)
+{
+  cthread_t child;
+  int var = 0;
+  int other = 0;
+  cthread_create(&child, condvarchild, (void *)&var, (void *)&other);
+  var = 0;
+  sleep(50);
+  if(other){
+    printf(1, "parkunparktest failed\n");
+    kill(child.pid);
+    return 0;
+  }
+  var = 1;
+  unpark(child.pid, (void *)&var);
+  cthread_join(&child);
+  printf(1, "parkunparktest succeeded\n");
+  return 0;
+}
+
+int
+lostchild(void *var, void *b)
+{
+  sleep(1000);
+  park(var);
+  cthread_exit();
+}
+
+// parent waits for 5 second. The child parks
+// The child should not change the variable till
+// it is unparked
+int
+wakeuptest(void)
+{
+  cthread_t child;
+  int var = 0;
+  int other = 0;
+  cthread_create(&child, lostchild, (void *)&var, (void *)&other);
+  unpark(child.pid, (void *)&var);
+  cthread_join(&child);
+  printf(1, "wakeuptest succeeded\n");
+  return 0;
+}
+
+int 
+queuetest(void)
+{
+  queue q;
+  qinit(&q);
+  int i;
+  for(i = 0; i < 10; i++)
+   enq(&q, i);
+
+  for(i = 0; i < 10; i++){
+    if(deq(&q) != i){
+      printf(1, "queuetest failed\n");
+      break;
+    }
+  }
+  if(i == 10)
+    printf(1, "queuetest ok\n");
+  return 0;
+}
+
+#define LIMIT 10
+#define NTIMES 100
+char buf[LIMIT];
+int next;
+int first;
+semaphore_t buflock;
+int producer(void *a, void *b)
+{
+  semaphore_t *slots = (semaphore_t *)a;
+  semaphore_t *items = (semaphore_t *)b;
+  int i;
+  for(i = 0; i < NTIMES; i++){
+    sem_down(slots);
+    sem_down(&buflock);
+    printf(1, "Producing %d\n", i);
+    buf[next] = i;
+    next = (next + 1) % LIMIT;
+    sem_up(&buflock);
+    sem_up(items);
+  }
   exit();
 }
 
+int consumer(void *a, void *b)
+{
+  semaphore_t *slots = (semaphore_t *)a;
+  semaphore_t *items = (semaphore_t *)b;
+  int i;
+  for(i = 0; i < NTIMES; i++){
+    sem_down(items);
+    sem_down(&buflock);
+    printf(1, "Consuming %d\n", buf[first]);
+    first = (first + 1) % LIMIT;
+    sem_up(&buflock);
+    sem_up(slots);
+  }
+  exit();
+}
+
+int
+producerconsumertest(void){
+  first = 0;
+  next = 0;
+  semaphore_t slots;
+  semaphore_t items;
+  cthread_t prod, cons;
+  sem_init(&slots, LIMIT);
+  sem_init(&items, 0);
+  sem_init(&buflock, 1);
+  cthread_create(&cons, consumer, (void *)&slots, (void *)&items);
+  cthread_create(&prod, producer, (void *)&slots, (void *)&items);
+  cthread_join(&prod);
+  cthread_join(&cons);
+  return 0;
+}
   
 int 
 main(void)
 {
-  memtest1();
+  /*memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -736,6 +868,10 @@ main(void)
   vmsynctest();
   cwdsynctest();
   pipevmsynctest();
-  tlbtest();
+  tlbtest();*/
+  //parkunparktest();
+  //wakeuptest();
+  //queuetest();
+  producerconsumertest();
   exit();
 }

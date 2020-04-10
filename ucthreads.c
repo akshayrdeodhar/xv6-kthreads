@@ -124,3 +124,82 @@ slock_release(slock_t *lk)
   __sync_synchronize();
   *lk = 0;
 }
+
+void qinit(queue *q)
+{
+  q->len = 0;
+  q->head = 0;
+  q->tail = 0;
+}
+
+void enq(queue *q, int x)
+{
+  qnode *n = malloc(sizeof(qnode));
+  n->val = x;
+  n->next = 0;
+  if(q->tail)
+    q->tail->next = n;
+  else
+    q->head = n;
+  q->tail = n;
+  q->len++;
+}
+
+int qisempty(queue *q)
+{
+  return (q->len == 0);
+}
+
+int qisfull(queue *q)
+{
+  return 0;
+}
+
+int deq(queue *q)
+{
+  qnode *n;
+  int x;
+  n = q->head;
+  x = n->val;
+  q->head = n->next;
+  free(n);
+  if(!q->head)
+    q->tail = 0;
+  q->len--;
+  return x;
+}
+
+void sem_init(semaphore_t *s, int n)
+{
+  slock_init(&s->guard);
+  s->count = n;
+  qinit(&s->waitq);
+}
+
+void sem_up(semaphore_t *s)
+{
+  int pid;
+  slock_acquire(&(s->guard));
+  s->count++;
+  if(s->count <= 0){
+    pid = deq(&(s->waitq));
+    unpark(pid, &(s->count));
+  }
+  slock_release(&(s->guard));
+}
+
+void sem_down(semaphore_t *s)
+{
+  int pid;
+  slock_acquire(&(s->guard));
+  s->count--;
+  if(s->count < 0){
+    pid = getpid();
+    enq(&(s->waitq), pid);
+    slock_release(&(s->guard));
+    park(&(s->count));
+  }
+  else{
+   slock_release(&(s->guard));
+  }
+}

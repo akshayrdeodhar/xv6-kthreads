@@ -55,6 +55,7 @@ struct proc {
   struct spinlock cwdlock;
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  void *lostwakeup;             // Wakeup delivered before trying to sleep in wait
 };
 
 struct table {

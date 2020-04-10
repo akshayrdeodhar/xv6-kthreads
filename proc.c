@@ -142,6 +142,7 @@ userinit(void)
   initlock(&p->vlock, "vlock");
 
   p->threadcount = 1;
+  p->lostwakeup = 0;
   
   initproc = p;
 
@@ -235,6 +236,7 @@ fork(void)
   // Thread group
   np->tgid = np->pid;
   np->process = np;
+  np->lostwakeup = 0;
 
   initlock(&np->vlock, "vlock");
   vlock = &(curproc->process->vlock);
@@ -672,6 +674,7 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   // Thread group
   np->tgid = curproc->tgid;
   np->process = curproc->process;
+  np->lostwakeup = 0;
    
   initlock(&np->vlock, "vlock");
   struct spinlock *vlock = &(curproc->process->vlock);
@@ -806,6 +809,66 @@ join(int pid)
   return pid;
 }
 
+int
+park(void *chan)
+{
+  struct proc *p = myproc();
+
+  if(p == 0)
+    panic("sleep");
+
+  acquire(&ptable.lock);
+  if(p->lostwakeup == chan){
+    p->lostwakeup = 0;
+    release(&ptable.lock);
+    return 0;
+  }
+  // Go to sleep.
+  p->chan = chan;
+  p->lostwakeup = 0; // now an unpark should be for this chan
+  p->state = SLEEPING;
+
+  sched();
+
+  // Tidy up.
+  p->chan = 0;
+  release(&ptable.lock);
+
+  return 0;
+}
+
+// unpark is to be delivered to someone who is 
+// parked on chan or is going to park on chan
+// if someone parks on a different chan instead,
+// the "wakeup" will be lost
+int
+unpark(int pid, void *chan)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->pid == pid)
+      break;
+  if(p->pid != pid){
+    release(&ptable.lock);
+    return -1;
+  }
+  if(p->state == SLEEPING && p->chan == chan){
+    p->state = RUNNABLE;
+    p->chan = 0;
+    release(&ptable.lock);
+    return 0;
+  }
+  else{
+    p->lostwakeup = chan;
+    release(&ptable.lock);
+    return 1;
+  }
+  return 0;
+}
+    
+   
+
 void *
 copy_from_user(void *dst, const void *src, uint n)
 {
@@ -856,4 +919,5 @@ copy_str_from_user(char *dst, const char *src, uint limit)
   release(vlock);
   return i;
 }
+
 
