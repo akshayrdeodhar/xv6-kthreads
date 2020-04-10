@@ -63,15 +63,28 @@ xaddl(volatile uint *addr, uint value)
   return value;
 }
 
+static inline uint
+xchg(volatile uint *addr, uint newval)
+{
+  uint result;
+
+  // The + in "+m" denotes a read-modify-write operand.
+  asm volatile("lock; xchgl %0, %1" :
+               "+m" (*addr), "=a" (result) :
+               "1" (newval) :
+               "cc");
+  return result;
+}
+
 void
-lock_init(lock_t *lk)
+tlock_init(tlock_t *lk)
 {
   lk->turn = 0;
   lk->ticket = 0;
 }
 
 void 
-lock_acquire(lock_t *lk)
+tlock_acquire(tlock_t *lk)
 {
   uint ticket;
   ticket = xaddl(&lk->ticket, 1);
@@ -84,8 +97,30 @@ lock_acquire(lock_t *lk)
 }
 
 void
-lock_release(lock_t *lk)
+tlock_release(tlock_t *lk)
 {
   __sync_synchronize();
   lk->turn += 1;
+}
+
+void
+slock_init(slock_t *lk)
+{
+  *lk = 0;
+}
+
+void 
+slock_acquire(slock_t *lk)
+{
+  while(xchg(lk, 1) != 0)
+    ;
+
+  __sync_synchronize();
+}
+
+void
+slock_release(slock_t *lk)
+{
+  __sync_synchronize();
+  *lk = 0;
 }

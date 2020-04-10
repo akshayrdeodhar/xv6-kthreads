@@ -369,10 +369,10 @@ toomanythreadstest(void)
 int
 cottonticket(void *a, void *b)
 {
-  lock_t *lk = (lock_t *)b;
-  lock_acquire(lk);
+  slock_t *lk = (slock_t *)b;
+  slock_acquire(lk);
   printf(1, "%d\n", getpid());
-  lock_release(lk);
+  slock_release(lk);
   exit();
 }
 
@@ -383,8 +383,8 @@ tickettest(void)
   cthread_t threads[NT];
   int arr[NT];
   int i;
-  lock_t lock;
-  lock_init(&lock);
+  slock_t lock;
+  slock_init(&lock);
 
   for (i = 0; i < NT; i++){
     arr[i] = i;
@@ -404,11 +404,11 @@ incracer(void *a, void *b)
 {
   int *x = (int *)a;
   int i;
-  lock_t *lk = (lock_t *)b;
+  slock_t *lk = (slock_t *)b;
   for(i = 0; i < TIMES; i++){
-    lock_acquire(lk);
+    slock_acquire(lk);
     *x += 1;
-    lock_release(lk);
+    slock_release(lk);
   }
   cthread_exit();
 }
@@ -418,8 +418,8 @@ racetest(void){
   cthread_t threads[NT];
   int i;
   int val = 0;
-  lock_t lock;
-  lock_init(&lock);
+  slock_t lock;
+  slock_init(&lock);
 
   for (i = 0; i < NT; i++){
     cthread_create(&threads[i], incracer, (void *)&val, (void *)&lock);
@@ -473,7 +473,7 @@ childkilltest(void)
 
 struct baton{
   int turn;
-  lock_t lock;
+  slock_t lock;
 };
 #define BUFFERSIZE (4096 * 4)
 
@@ -643,7 +643,7 @@ pipevmsynctest(void)
 }
 
 typedef struct{
-  lock_t lockt;
+  slock_t lockt;
   int threadsready;
   int parentready;
 }baton;
@@ -658,18 +658,18 @@ tlb_child(void *ready, void *page_p)
   for(i = 0; i < 1024; i++){
     page[0]++;
   }
-  lock_acquire(&(b->lockt));
+  slock_acquire(&(b->lockt));
   b->threadsready++;
-  lock_release(&(b->lockt));
+  slock_release(&(b->lockt));
   while(!b->parentready)
     ;
   /* check whether TLB entry accessed or new entry */
   for(i = 0; i < 1024; i++){
     page[0]--;
   }
-  lock_acquire(&(b->lockt));
+  slock_acquire(&(b->lockt));
   b->threadsready--;
-  lock_release(&(b->lockt));
+  slock_release(&(b->lockt));
   exit();
 }
 
@@ -686,7 +686,7 @@ tlbtest(void)
   for(reps = 0; reps < REPS; reps++){
     bt.threadsready = 0;
     bt.parentready = 0;
-    lock_init(&bt.lockt);
+    slock_init(&bt.lockt);
     for(i = 0; i < TLB_N; i++){
       pages[i] = sbrk(4096);
     }
@@ -728,7 +728,7 @@ main(void)
   memtest();
   cottontest1();
   twoexectest();
-  toomanythreadstest();
+  //toomanythreadstest();
   tickettest();
   racetest();
   childkilltest();

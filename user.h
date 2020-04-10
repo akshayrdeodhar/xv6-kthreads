@@ -54,9 +54,16 @@ void cthread_exit(void) __attribute__((noreturn));
 typedef struct{
   uint ticket;
   uint turn;
-}lock_t;
+}tlock_t;
 
-void lock_init(lock_t *);
-void lock_acquire(lock_t *);
-void lock_release(lock_t *);
+void tlock_init(tlock_t *);
+void tlock_acquire(tlock_t *);
+void tlock_release(tlock_t *);
+
+// spinlock
+typedef uint slock_t;
+
+void slock_init(slock_t *);
+void slock_acquire(slock_t *);
+void slock_release(slock_t *);
 
