@@ -25,6 +25,8 @@ int sleep(int);
 int uptime(void);
 int clone(int (*fn)(void *, void *), void *arg1, void *arg2, void *child_stack, int flags);
 int join(int pid);
+int park(void *chan);
+int unpark(int pid, void *chan);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -67,3 +69,31 @@ void slock_init(slock_t *);
 void slock_acquire(slock_t *);
 void slock_release(slock_t *);
 
+// queue
+typedef struct qnode{
+  struct qnode *next;
+  int val;
+}qnode;
+
+#define QMAX 100
+typedef struct{
+  int arr[QMAX];
+  int start, end;
+  uint count;
+}queue;
+
+void qinit(queue *q);
+void enq(queue *q, int x);
+int qisempty(queue *q);
+int qisfull(queue *q);
+int deq(queue *q);
+
+typedef struct{
+  slock_t guard;
+  queue waitq;
+  int count;
+}semaphore_t;
+
+void sem_init(semaphore_t *s, int n);
+void sem_up(semaphore_t *s);
+void sem_down(semaphore_t *s);

@@ -127,6 +127,40 @@ slock_release(slock_t *lk)
 
 void qinit(queue *q)
 {
+  q->start = 0;
+  q->end = 0;
+  q->count = 0;
+}
+
+void enq(queue *q, int x)
+{
+  q->arr[q->end] = x;
+  q->end = (q->end + 1) % QMAX;
+  q->count++;
+}
+
+int deq(queue *q)
+{
+  int x;
+  x = q->arr[q->start];
+  q->start = (q->start + 1) % QMAX;
+  q->count--;
+  return x;
+}
+
+int qisfull(queue *q)
+{
+  return (q->count == QMAX);
+}
+
+int qisempty(queue *q)
+{
+  return !q->count;
+}
+
+
+/*(void qinit(queue *q)
+{
   q->len = 0;
   q->head = 0;
   q->tail = 0;
@@ -168,6 +202,9 @@ int deq(queue *q)
   q->len--;
   return x;
 }
+*/
+
+slock_t printlock;
 
 void sem_init(semaphore_t *s, int n)
 {

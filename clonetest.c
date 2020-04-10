@@ -798,7 +798,7 @@ queuetest(void)
 char buf[LIMIT];
 int next;
 int first;
-int slock_t vallock;
+slock_t vallock;
 int data;
 semaphore_t buflock;
 int producer(void *a, void *b)
@@ -809,12 +809,12 @@ int producer(void *a, void *b)
   int x;
   for(i = 0; i < NTIMES; i++){
     slock_acquire(&vallock);
-    x = data++;
+    x = data;
+    data++;
     slock_release(&vallock);
     sem_down(slots);
     sem_down(&buflock);
-    printf(1, "Producing %d\n", i);
-    buf[next] = data;
+    buf[next] = x;
     next = (next + 1) % LIMIT;
     sem_up(&buflock);
     sem_up(items);
@@ -830,7 +830,6 @@ int consumer(void *a, void *b)
   for(i = 0; i < NTIMES; i++){
     sem_down(items);
     sem_down(&buflock);
-    printf(1, "Consuming %d\n", buf[first]);
     first = (first + 1) % LIMIT;
     sem_up(&buflock);
     sem_up(slots);
@@ -856,8 +855,8 @@ producerconsumertest(void){
   for(i = 0; i < THREADSN; i++)
     cthread_create(&prod[i], producer, (void *)&slots, (void *)&items);
   for(i = 0; i < THREADSN; i++){
-    cthread_join(&prod);
-    cthread_join(&cons);
+    cthread_join(&prod[i]);
+    cthread_join(&cons[i]);
   }
   return 0;
 }
@@ -886,6 +885,8 @@ main(void)
   //parkunparktest();
   //wakeuptest();
   //queuetest();
-  producerconsumertest();
+  int i;
+  for(i = 0; i < 200; i++)
+    producerconsumertest();
   exit();
 }
