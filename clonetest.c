@@ -860,6 +860,69 @@ producerconsumertest(void){
   }
   return 0;
 }
+
+#define PHILOSOPHERS 5
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+semaphore_t forks[PHILOSOPHERS];
+int ate[PHILOSOPHERS];
+slock_t printlock;
+
+int 
+philosopher(void *a, void *b)
+{
+ int no;
+ int i;
+ no = (*((int *)a));
+ int fork1 = MIN(no, (no + 1) % PHILOSOPHERS);
+ int fork2 = MAX(no, (no + 1) % PHILOSOPHERS);
+ for(i = 0; i < 100; i++){
+   slock_acquire(&printlock);
+   printf(1, "%d thinking\n", no);
+   slock_release(&printlock);
+   sem_down(&forks[fork1]);
+   sleep(10);
+   sem_down(&forks[fork2]);
+   slock_acquire(&printlock);
+   printf(1, "%d eating\n", no);
+   slock_release(&printlock);
+   sem_up(&forks[fork2]);
+   sleep(10);
+   sem_up(&forks[fork1]);
+ }
+ exit();
+}
+
+int
+diningphilosophers(void)
+{
+  int i;
+  cthread_t philosophers[PHILOSOPHERS];
+  int numbers[PHILOSOPHERS];
+  for(i = 0; i < PHILOSOPHERS; i++)
+    sem_init(&forks[i], 1);
+
+  for(i = 0; i < PHILOSOPHERS; i++){
+    numbers[i] = i;
+    cthread_create(&philosophers[i], philosopher, (void *)&numbers[i], 0);
+  }
+
+  for(i = 0; i < PHILOSOPHERS; i++)
+    cthread_join(&philosophers[i]);
+
+  for(i = 0; i < PHILOSOPHERS; i++)
+    if(!ate[i])
+      break;
+
+  if(i != PHILOSOPHERS)
+    printf(1, "diningphilosopherstest failed\n");
+  else
+    printf(1, "diningphilosopherstest ok\n");
+
+  return 0;
+}
+
+
   
 int 
 main(void)
@@ -885,8 +948,8 @@ main(void)
   //parkunparktest();
   //wakeuptest();
   //queuetest();
-  int i;
-  for(i = 0; i < 200; i++)
-    producerconsumertest();
+  //for(i = 0; i < 200; i++)
+  //  producerconsumertest();
+  diningphilosophers();
   exit();
 }
