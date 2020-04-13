@@ -656,7 +656,6 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   // anyway, not touching anything below stack - 12
   // lock: this and the stack defererence for setup
   if((uint)(stack - 4096) >= curproc->process->sz || (uint)(stack) > curproc->process->sz) {
-    cprintf("stack: %p, sz: %p\n", stack, curproc->process->sz);
     return -1;
   }
    
@@ -727,30 +726,6 @@ clone(int (*fn)(void *, void*), void *arg1, void *arg2,
   release(&ptable.lock);
    
   return pid;
-}
-
-// Make the current thread zombie
-// Do not return
-// A dead thread remains in ZOMBIE
-// state till some thread from the 
-// parent process calls wait on it
-void
-die(void)
-{
-  struct proc *curproc = myproc();
-
-  if(curproc == initproc)
-    panic("init exiting");
-
-  acquire(&ptable.lock);
-
-  // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
-
-  // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
-  sched();
-  panic("zombie exit");
 }
 
 // if thread with pid = *pid* is in the same thread group
