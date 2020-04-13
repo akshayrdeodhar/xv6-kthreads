@@ -40,8 +40,10 @@ cthread_cut(cthread_t *thread)
 int cthread_join(cthread_t *thread)
 {
   if(join(thread->pid) != thread->pid){
+    free(thread->stack);
     return -1;
   }
+  free(thread->stack);
   return thread->pid;
 }
   

@@ -858,6 +858,7 @@ producerconsumertest(void){
     cthread_join(&prod[i]);
     cthread_join(&cons[i]);
   }
+  printf(1, "producerconsumertest ok\n");
   return 0;
 }
 
@@ -877,15 +878,17 @@ philosopher(void *a, void *b)
  int fork1 = MIN(no, (no + 1) % PHILOSOPHERS);
  int fork2 = MAX(no, (no + 1) % PHILOSOPHERS);
  for(i = 0; i < 100; i++){
-   slock_acquire(&printlock);
+   /*slock_acquire(&printlock);
    printf(1, "%d thinking\n", no);
    slock_release(&printlock);
+   */
    sem_down(&forks[fork1]);
    sleep(10);
    sem_down(&forks[fork2]);
-   slock_acquire(&printlock);
+   /*slock_acquire(&printlock);
    printf(1, "%d eating\n", no);
    slock_release(&printlock);
+   */
    sem_up(&forks[fork2]);
    sleep(10);
    sem_up(&forks[fork1]);
@@ -927,7 +930,7 @@ diningphilosophers(void)
 int 
 main(void)
 {
-  /*memtest1();
+  memtest1();
   jointest();
   jointest1();
   waitjointest();
@@ -944,12 +947,11 @@ main(void)
   vmsynctest();
   cwdsynctest();
   pipevmsynctest();
-  tlbtest();*/
-  //parkunparktest();
-  //wakeuptest();
-  //queuetest();
-  //for(i = 0; i < 200; i++)
-  //  producerconsumertest();
+  tlbtest();
+  parkunparktest();
+  wakeuptest();
+  queuetest();
+  producerconsumertest();
   diningphilosophers();
   exit();
 }
