@@ -338,3 +338,43 @@ Provides
 > Users are encouraged to use semaphores for everything. (They have no choice,
 > as the library does not provide *mutexes*, *condition variables* or *monitors*.) 
 > But semaphores are supposed to be general anyway :)
+
+## Issues
+
+1. *vlock* ensures that the kernel does not dereference invalid pointers.
+   However, the thread TLB's still cache old entries. This might result in some
+thread accessing a memory region due to a cached TLB entry, though it is not in
+it's page directory. In worst case, if the physical page which the old TLB entry
+is mapped to is allocated to *another process*, one process could change the
+data of the other. A solution to this using interprocessor interrupts has been
+implemented on the branch *tlb_invalidate*, using a simplified version of the
+TLB shootdown described in [this
+paper](https://www.cs.rice.edu/~alc/comp521/Papers/p113-black.pdf). But it does
+not work, and produces deadlocks. Work on this will continue.
+
+2. A lot of threads trying to acquire a ticket lock at the same time in rare
+   cases makes the program **very** slow. My explanation for this is thus
+
+	T1: got scheduled, acquired L
+	T2: tried to acquire L
+	T3: tries to acquire L
+	T4: tries to acquire L
+	...
+	T60: tries to acquire L
+	T2: scheduled, acquires L
+	T3: scheduled, does not acquire L
+	T4: scheduled, does not acquire L
+	...
+	T3: acquires L
+
+	An entire round of the scheduler is required for the next thread in line to acquire the lock
+
+The point is, progress does not *stop*, it just becomes very slow. This is not a
+scheduler issue too, because all threads were observed to be scheduled.
+
+3. Although a single copy of the per-process attributes is shared by all threads
+   in the process, because struct proc contains them, empty attributes are
+present for the non-leader threads. This is a design issue. A more appropriate
+design would be sepearting the per-thread and per-process attributes into a
+"struct thread" and "struct process" respectively.
+
