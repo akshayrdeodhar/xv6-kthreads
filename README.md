@@ -128,23 +128,7 @@ while it is being copied. Initializes the *threadcount* to 1.
 
 ### **exec**
 
-When a thread execs, all other threads in the process are terminated, and the
-calling thread waits for them to terminate before becoming RUNNABLE. The calling
-thread assumes the identity of the thread group leader before marking any of the
-other threads as *killed*. All the attributes which belong to the process are
-copied to the new group leader. There is a small window where these attributes
-exist in the former and new group leader.
-
-The lock on the virtual address space is held when the new process is assigned
-the page directory constructed and the size, *sz*.
-
-If two threads call exec at the same time, the one which is called first will
-become the thread group leader. 
-
-If one thread calls exec and another calls clone, *marking the new thread as
-RUNNABLE, and marking all threads in the process as killed is serialized by
-ptable.lock*. So either the thread is created and then terminated, or it is not
-created at all.
+Exec is invalid when a process is multithreaded.
 
 ### **wait**
 

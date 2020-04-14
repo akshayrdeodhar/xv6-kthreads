@@ -12,67 +12,23 @@ int
 exec(char *path, char **argv)
 {
   char *s, *last;
-  int i, off, alive;
+  int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
-  struct proc *p;
 
   
   // Kill all other threads in the process
   acquire(&ptable.lock);
 
-  if(curproc->killed){
+  if(curproc->killed || curproc->process->threadcount > 1){
     release(&ptable.lock);
     return -1;
   }
-
-  if(curproc != curproc->process){
-    curproc->threadcount = curproc->process->threadcount;
-    curproc->process->threadcount = 0;
-    curproc->cwd = curproc->process->cwd;
-    curproc->process->cwd = 0;
-    curproc->cwdlock = curproc->process->cwdlock;
-    curproc->sz = curproc->process->sz;
-    curproc->process->sz = 0;
-    curproc->vlock = curproc->process->vlock;
-    curproc->process->pid = curproc->pid;
-    curproc->pid = curproc->tgid;
-    curproc->process = curproc;
-  }
-
-  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
-      p->killed = 1;
-      p->process = curproc;
-      if (p->state == SLEEPING) 
-        p->state = RUNNABLE;
-    }
-  }
-  release(&ptable.lock);
-
-  // Wait for them to die
-  acquire(&ptable.lock);
-  for (;;) {
-    alive = 0;
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      // assumption: wait() will clear PID, TID
-      if (p->tgid == curproc->tgid && p != curproc 
-                                   && p->state != ZOMBIE) {
-        alive = 1;
-	break;
-      }
-    }
-    if (alive) {
-      sleep(curproc->process, &ptable.lock);
-    }
-    else {
-      break;
-    }
-  }
+  
   release(&ptable.lock);
 
   begin_op();

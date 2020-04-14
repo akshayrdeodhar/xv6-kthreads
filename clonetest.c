@@ -896,7 +896,7 @@ philosopher(void *a, void *b)
  no = (*((int *)a));
  int fork1 = MIN(no, (no + 1) % PHILOSOPHERS);
  int fork2 = MAX(no, (no + 1) % PHILOSOPHERS);
- for(i = 0; i < 100; i++){
+ for(i = 0; i < 10; i++){
    /*slock_acquire(&printlock);
    printf(1, "%d thinking\n", no);
    slock_release(&printlock);
@@ -955,17 +955,17 @@ main(void)
   jointest1();
   waitjointest();
   childwaittest();
-  exectest();
+  //exectest();
   memtest();
   cottontest1();
-  twoexectest();
+  //twoexectest();
   toomanythreadstest();  
   tickettest();
   racetest();
   childkilltest();
   vmemtest();
   vmsynctest();
-  //cwdsynctest();
+  cwdsynctest();
   pipevmsynctest();
   //tlbtest(); --failes, no TLB shootdown
   parkunparktest();
