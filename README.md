@@ -83,8 +83,6 @@ does not exist, returns -1. If the thread is not the process group leader, frees
 up it's kernel stack. Holds *ptable.lock* at all times except when it is
 sleep-waiting for the thread to exit. If successful, returns *pid*. 
 
-If *exec* occurs while it is sleep-waiting, dies.
-
 This nature is for supporting waiting for a specific thread to exit. Waiting for
 any thread to exit seems useless.
 
@@ -139,10 +137,6 @@ threads in this process 0, and marks their struct procs as UNUSED. *ptable.lock*
 is held while checking and cleaning. The reason behind this is to allow *join*
 to clean up threads before *wait* tries to clean them up, and to ensure that a
 single call to *wait* touches only one child process.
-
-If exec is called in a process, the other threads in the process (which have
-been terminated by the thread calling *exec*) are cleaned *after* the new
-process which runs after *exec* is complete.
 
 > Note: *threadcount* is the number of threads in the process which are not ZOMBIE
 > or UNUSED.
