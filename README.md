@@ -378,3 +378,17 @@ present for the non-leader threads. This is a design issue. A more appropriate
 design would be sepearting the per-thread and per-process attributes into a
 "struct thread" and "struct process" respectively.
 
+4. The original xv6 implementations of malloc and free are not thread safe, and have not been
+   modified to be thread safe. (But they are userland code anyway). Similarly,
+multiple threads (or even forked processes) calling printf at the same time
+results in out-of-order printing. This is because printf does not construct a
+string and then issue a single *write*. Instead, it issues multiple *putc*s.
+
+5. While a thread created by clone shares the open file descriptors, threads do
+   not share any changes in the file descriptors made after the clone call.
+
+
+## Tests
+
+Tests are present in clonetest.c in a format similar to usertests provided by
+xv6. Each test is described briefly in the source file.
