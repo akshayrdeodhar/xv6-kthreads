@@ -19,14 +19,15 @@ int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
 
-  acquire(&curproc->process->vlock);
+  acquire(vlock);
   if(addr >= curproc->process->sz || addr+4 > curproc->process->sz){
-    release(&curproc->process->vlock);
+    release(vlock);
     return -1;
   }
   *ip = *(int*)(addr);
-  release(&curproc->process->vlock);
+  release(vlock);
 
   return 0;
 }
@@ -39,23 +40,24 @@ fetchstr(uint addr, char **pp)
 {
   char *s, *ep;
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
 
   // this check is useless, check again before deref
 
-  acquire(&curproc->process->vlock);
+  acquire(vlock);
   if(addr >= curproc->process->sz){
-    release(&curproc->process->vlock);
+    release(vlock);
     return -1;
   }
   *pp = (char*)addr;
   ep = (char*)curproc->process->sz;
   for(s = *pp; s < ep; s++){
     if(*s == 0){
-      release(&curproc->process->vlock);
+      release(vlock);
       return s - *pp;
     }
   }
-  release(&curproc->process->vlock);
+  release(vlock);
   return -1;
 }
 
@@ -74,17 +76,18 @@ argptr(int n, char **pp, int size)
 {
   int i;
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
  
   if(argint(n, &i) < 0)
     return -1;
   // this check is technically useless, check again before deref, atomically
-  acquire(&curproc->process->vlock);
+  acquire(vlock);
   if(size < 0 || (uint)i >= curproc->process->sz || (uint)i+size > curproc->process->sz) {
-    release(&curproc->process->vlock);
+    release(vlock);
     return -1;
   }
   *pp = (char*)i;
-  release(&curproc->process->vlock);
+  release(vlock);
   return 0;
 }
 

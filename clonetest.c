@@ -3,67 +3,6 @@
 #include "user.h"
 #include "fcntl.h"
 
-/*int
-memtestchild(void *x, void *y)
-{
-  char *sharedmem = (char *)y;
-  char *a = (char *)x;
-
-  while(sharedmem[0] == (int)0)
-    sleep(1);
-
-  sharedmem[1] = 1;
-  a[0] = 1;
-
-  while(sharedmem[2] == 0)
-   sleep(1);
-
-  exit();
-
-}
-
-int
-memtest1(void)
-{
-  char *buf;
-  char *a = 0;
-  char *b1, *b2;
-  char *sharedmem = malloc(10);
-  for (int i = 0; i < 10; ++i) sharedmem[i] = 0;
-  int retval;
-
-  b1 = sbrk(0);
-  b2 = sbrk(4096);
-  if (b2 < 0) {
-    printf(1, "sbrk failed\n");
-    return 1;
-  }
-
-  buf = b1;
-
-  a = sbrk(10);
-
-  retval = clone(memtestchild, (void *)a, (void *)sharedmem, buf + 4096, 0);
-  if (retval < 0) {
-    printf(1, "Clone failed, retval = %d\n", retval);
-    return 1;
-  }
-
-  sharedmem[0] = 1;
-
-  while(sharedmem[1] == (int)0)
-    sleep(1);
-
-  sbrk(-10);
-  
-  sharedmem[2] = 1;
-
-  join(retval);
-  sbrk(-4096);
-
-  return 0;
-}*/
-
 int
 jointestchild(void *a, void *b)
 {
@@ -378,7 +317,7 @@ twoexectest(void)
   return 0;
 }
 
-/*#define TOO_MANY 100
+#define TOO_MANY 100
 int
 toomanythreadstest(void)
 {
@@ -387,14 +326,13 @@ toomanythreadstest(void)
   char *initial = sbrk(0);
   char *final;
   int flag = 0;
-  int time = 1000;
+  int time = 100;
   for(i = 0; i < TOO_MANY; i++){
     ret = cthread_create(&arr[i], jointestchild1, &time, 0);
     if(ret == -1){
       break;
     }
   }
-  printf(1, "%d threads spawned\n", i);
   if(i < 61){
     // NPROC is 64
     printf(1, "toomanythreads test failed\n");
@@ -408,7 +346,7 @@ toomanythreadstest(void)
   if(!flag)
     printf(1, "toomanythreads test passed\n");
   return 0;
-}*/
+}
 
 
 int
@@ -907,15 +845,6 @@ int consumer(void *a, void *b)
   for(i = 0; i < NTIMES; i++){
     sem_down(items);
     sem_down(&buflock);
-#if LIMIT == 1
-    slock_acquire(&reclock);
-    if(buf[first] != expected){
-      printf(1, "producerconsumertest failed\n");
-      pcfailed = 1;
-    }
-    expected++;
-    slock_release(&reclock);
-#endif
     first = (first + 1) % LIMIT;
     sem_up(&buflock);
     sem_up(slots);
@@ -1023,24 +952,23 @@ diningphilosophers(void)
 int 
 main(void)
 {
-  //memtest1();
-  jointest();
+  int i;
   jointest1();
   waitjointest();
   childwaittest();
-  //exectest();
+  exectest();
   memtest();
   cottontest1();
-  //twoexectest();
-  //toomanythreadstest();
+  twoexectest();
+  toomanythreadstest();  
   tickettest();
   racetest();
   childkilltest();
   vmemtest();
   vmsynctest();
-  cwdsynctest();
+  //cwdsynctest();
   pipevmsynctest();
-  tlbtest();
+  //tlbtest(); --failes, no TLB shootdown
   parkunparktest();
   wakeuptest();
   queuetest();

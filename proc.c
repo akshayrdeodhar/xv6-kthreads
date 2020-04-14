@@ -63,20 +63,6 @@ myproc(void) {
   return p;
 }
 
-// INCOMPLETE:
-// Send an interrupt to all other CPUs
-// tell them to reload their page tables
-// to be called with interrupts disabled
-/*static void
-tlbinitiate(void)
-{
-  uint apicid;
-  apicid = mycpu()->apicid;
-  //apicid = apicid | 0xffffffff;
-  cprintf("I shot them. %d\n", apicid);
-  lapicexclbcast(T_TLBFLUSH);
-}*/
-
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -186,32 +172,31 @@ growproc(int n)
 {
   uint sz;
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
 
   //TOCTOU: delay the sbrk till check happens
   //int i;
   //for(i = 0; i < 100; i++)
   //  yield();
 
-  acquire(&curproc->process->vlock);
-  // interrupts got disabled here
-  //tlbinitiate();
+  acquire(vlock);
 
   sz = curproc->process->sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
-      release(&curproc->process->vlock);
+      release(vlock);
       return -1;
     }
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0){
-      release(&curproc->process->vlock);
+      release(vlock);
       return -1;
     }
   }
   curproc->process->sz = sz;
   switchuvm(curproc);
 
-  release(&curproc->process->vlock);
+  release(vlock);
 
   return 0;
 }
