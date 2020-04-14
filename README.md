@@ -388,7 +388,21 @@ string and then issue a single *write*. Instead, it issues multiple *putc*s.
    not share any changes in the file descriptors made after the clone call.
 
 
+## Lock Orders:
+xv6 generally tries to ensure that only one lock is held at a time (no nested
+locks), to prevent deadlocks. If two locks are held at a time, the order of
+acquiring these locks should be the same everywhere. 
+
+The following lock orders should now be maintained
+
+	bcache.lock -> vlock (in fileread)
+	&p->lock    -> vlock (in piperead)
+	ptable.lock -> vlock (in scheduler)
+
+> So- DO NOT SLEEP ON vlock!
+
 ## Tests
 
 Tests are present in clonetest.c in a format similar to usertests provided by
 xv6. Each test is described briefly in the source file.
+
