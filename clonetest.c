@@ -3,7 +3,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-int
+/*int
 memtestchild(void *x, void *y)
 {
   char *sharedmem = (char *)y;
@@ -62,7 +62,7 @@ memtest1(void)
   sbrk(-4096);
 
   return 0;
-}
+}*/
 
 int
 jointestchild(void *a, void *b)
@@ -77,6 +77,10 @@ jointestchild(void *a, void *b)
   exit();
 }
 
+// creates a thread, passes the address of two variables
+// calls join to wait on the thread
+// thread swaps the values of the two variables (shared memory)
+// if values are swapped when main thread comes out of join(), test OK
 int
 jointest(void)
 {
@@ -92,9 +96,9 @@ jointest(void)
   join(retval);
   sbrk(-4096);
   if (a == 25 && b == 42)
-    printf(1, "Join test succeeded\n");
+    printf(1, "jointest ok\n");
   else
-    printf(1, "Join test failed\n");
+    printf(1, "jointest failed\n");
   return 0;
 }
 
@@ -106,6 +110,11 @@ jointestchild1(void *a, void *b)
   exit();
 }
 
+// creates two threads using clone, the first one sleeps for 100ms
+// second one sleeps for 50ms. 
+// join is called on the first thread. join should return on first thread 
+// even if the second thread exits first
+// also ensures that wait is not cleaning up before join
 int
 jointest1(void)
 {
@@ -115,20 +124,20 @@ jointest1(void)
   char *buffer1, *buffer2;
   buffer1 = sbrk(4096);
   buffer2 = sbrk(4096);
-  one = 50;
-  two = 100;
+  one = 100;
+  two = 50;
   tid1 = clone(jointestchild1, (void *)&one, 0, buffer1 + 4096, 0);
   tid2 = clone(jointestchild1, (void *)&two, 0, buffer2 + 4096, 0);
-  sbrk(-8192);
   ret1 = join(tid1);
   ret2 = join(tid2);
   if (ret1 == tid1 && ret2 == tid2)
-    printf(1, "Joining order test succeeded\n");
+    printf(1, "joining order test ok\n");
   else
-    printf(1, "Joining order test failed\n");
+    printf(1, "joining order test failed\n");
   return 0;
 }
 
+// forks
 int
 waitjointest(void)
 {
@@ -188,6 +197,11 @@ wait_er(void *a, void *b)
   exit();
 }
 
+// process forks, and the child is made to sleep for 30ms
+// parent clones, and thread is made to call wait
+// parent joins the cloned thread 
+// parent calls wait. wait should return -1
+// thread created using clone should be able to wait on child processes
 int 
 childwaittest(void)
 {
@@ -197,8 +211,7 @@ childwaittest(void)
   int ret;
   ret = fork();
   if (!ret){
-    printf(1, "Child process in waiter thread test\n");
-    sleep(20);
+    sleep(30);
     exit();
   }
   tid = clone(wait_er, 0, 0, stack + 4096, 0);
@@ -208,7 +221,7 @@ childwaittest(void)
     printf(1, "Waiter thread test failed\n");
   }
   else {
-    printf(1, "Waiter thread test succeeded\n");
+    printf(1, "Waiter thread test ok\n");
   }
   sbrk(-4096);
   return 0;
@@ -226,6 +239,13 @@ execchild(void *a, void *b)
   return 0;
 }
 
+// process forks
+// int he child process, two threads are created, one dummy thread, and one
+// which exec()s
+// the child process tries to *join* the thread which calls exec. 
+// this join should fail as all threads should be terminated by exec
+// the parent process waits. wait should return the pid of the child process
+// because the exec() should transfer the pid to the thread calling exec()
 int
 exectest(void)
 {
@@ -247,7 +267,7 @@ exectest(void)
   else{
     ret2 = wait();
     if(ret1 == ret2){
-      printf(1, "exec test succeeded\n");
+      printf(1, "exec test ok\n");
     }
     else{
       printf(1, "exec test failed (%d, %d)\n", ret1, ret2);
@@ -267,6 +287,12 @@ racer(void *count, void *dummy)
   exit();
 }
 
+// meant to test that sbrk() work properly in multithreaded env
+// process creates two threads, which sbrk(1) in a loop, 100 times
+// process joins the two threads
+// the process size after the join should be initial process size + 200 
+// (if sz were not protected by a lock, there might be a race, which will mean
+// that the process size is different)
 int 
 memtest(void)
 {
@@ -285,38 +311,56 @@ memtest(void)
     printf(1, "memtest failed\n");
   }
   else{
-    printf(1, "memtest succeeded\n");
+    printf(1, "memtest ok\n");
   }
+  free(stack1);
+  free(stack2);
   return 0;
 }
 
 int
 cottonthread(void *a, void *b)
 {
-  printf(1, "%d\n", *((int *)a));
+  //printf(1, "%d\n", *((int *)a));
   cthread_exit();
 }
 
-#define NT 60
+#define NT 61
+// size of ptable.proc is 64
+// so there are 61 remaining slots after init, sh, clonetests
+// 61 threads should be created and joined
 int
 cottontest1(void)
 {
   cthread_t threads[NT];
   int arr[NT];
   int i;
+  int ret;
+  int failed = 0;
 
   for (i = 0; i < NT; i++){
     arr[i] = i;
-    cthread_create(&threads[i], cottonthread, (void *)&arr[i], 0);
+    if((ret = cthread_create(&threads[i], cottonthread, (void *)&arr[i], 0)) == -1){
+      printf(1, "cotton thread test failed\n");
+      failed = 1;
+    }
   }
   
   for (i = 0; i < NT; i++){
-    cthread_join(&threads[i]);
+    if((ret = cthread_join(&threads[i])) != threads[i].pid){
+      printf(1, "cotton thread test failed\n");
+      failed = 1;
+    }
   }
+
+  if(!failed)
+    printf(1, "cotton thread test ok\n");
 
   return 0;
 }
 
+// this was for weeding out a specific issue where two threads called exec() at
+// the same time, one of them would *not* get killed
 int
 twoexectest(void)
 {
@@ -334,7 +378,7 @@ twoexectest(void)
   return 0;
 }
 
-#define TOO_MANY 100
+/*#define TOO_MANY 100
 int
 toomanythreadstest(void)
 {
@@ -364,27 +408,30 @@ toomanythreadstest(void)
   if(!flag)
     printf(1, "toomanythreads test passed\n");
   return 0;
-}
+}*/
+
 
 int
 cottonticket(void *a, void *b)
 {
-  slock_t *lk = (slock_t *)b;
-  slock_acquire(lk);
-  printf(1, "%d\n", getpid());
-  slock_release(lk);
+  tlock_t *lk = (tlock_t *)b;
+  tlock_acquire(lk);
+  printf(1, "%d\t", getpid());
+  tlock_release(lk);
   exit();
 }
 
-#define NT 60
+// threads should print their PID in the order which they were spawned (ideally)
+// could not think of a way to test this, could verify visually.
+#define NT 61
 int
 tickettest(void)
 {
   cthread_t threads[NT];
   int arr[NT];
   int i;
-  slock_t lock;
-  slock_init(&lock);
+  tlock_t lock;
+  tlock_init(&lock);
 
   for (i = 0; i < NT; i++){
     arr[i] = i;
@@ -413,6 +460,9 @@ incracer(void *a, void *b)
   cthread_exit();
 }
 
+// 61 threads race on incrementing a single integer 1000 times each, with access
+// syncrhonised using a lock
+// the value of the variable after joining should be (1000 * NT)
 int
 racetest(void){
   cthread_t threads[NT];
@@ -432,7 +482,7 @@ racetest(void){
   if(val != NT * TIMES){
     printf(1, "racetest failed\n");
   }else{
-    printf(1, "racetest succeeded\n");
+    printf(1, "racetest ok\n");
   }
   return 0;
 }
@@ -448,6 +498,7 @@ wayvard_child(void *time, void *flag)
   exit();
 }
 
+// child should be killed before it changes the value of the flag
 int 
 childkilltest(void)
 {
@@ -488,12 +539,19 @@ vmmessfunc(void *a, void *b){
   ret = read(fp, buf, BUFFERSIZE);
 
   if(ret == -1)
-    printf(1, "vmsynctest succeeded\n");
+    printf(1, "vmsynctest ok\n");
+  else
+    printf(1, "vmsynctest failed\n");
   
   cthread_exit();
   close(fp);
 }
 
+// process creates child, passes it a buffer
+// sets flag and immediately sbrk's the buffer out of the memory space
+// read should fail in the child. 
+// yields() have been added in the kernel which cause wrong access when safe copy primitives
+// are not used
 int
 vmsynctest(void)
 {
@@ -529,6 +587,8 @@ checker(void *a, void *b){
   exit();
 }
 
+// buffer which spans multiple pages in heap created, ands set to some value
+// the buffer should have the same value in the child
 int
 vmemtest(void){
   char *buffer;
@@ -539,7 +599,7 @@ vmemtest(void){
   cthread_create(&thread, checker, (void *)buffer, (void *)&ch);
   cthread_join(&thread);
   if(!ch)
-    printf(1, "vmemtest succeeded\n");
+    printf(1, "vmemtest ok\n");
   free(buffer);
   return 0;
 }
@@ -564,6 +624,10 @@ cwdchild(void *a, void *b)
   exit();
 }
 
+// the child creates a directory, changes working directory
+// creates a file in the new working directory, writes bytes to it and exits
+// the parent joins the child thread. the parent should be able to open the file
+// and the file should have the same contents
 int 
 cwdsynctest(void)
 {
@@ -584,7 +648,7 @@ cwdsynctest(void)
     unlink("testdir");
   }else {
     close(fp);
-    printf(1, "cwdsynctest succeeded\n");
+    printf(1, "cwdsynctest ok\n");
   }
   return 0;
 }
@@ -608,14 +672,14 @@ clonevmmessfunc(void *a, void *b){
   ret = read(pipefd[0], buf, SMALLBUFFERSIZE);
 
   if(ret == -1)
-    printf(1, "clonevmsynctest succeeded\n");
+    printf(1, "clonevmsynctest ok\n");
   
   cthread_exit();
   close(fp);
 }
 
-// To be performed while having the TOCTOU blocks in proc.c and somewhere else
-// uncommented
+// similar to the filewrite safe copy primitives test, except for pipes
+// not using safe copy primitives causes TOCTOU panics in the kernel
 int
 pipevmsynctest(void)
 {
@@ -673,6 +737,14 @@ tlb_child(void *ready, void *page_p)
   exit();
 }
 
+// create children which repeatedly access the same location in a page allocated
+// in the parent resulting in a tlb entry. Then sets a flag
+// the parent on seeing the flag invalidates the page, and sets another flag
+// which causes the thread to proceed, and try to access the same location
+// this should kill the thread, and not allow it to proceed, (because the TLB
+// entry was invalidated)
+// this test fails, as of now. too many complications in using multiprocessor
+// interrupts
 #define TLB_N 1
 #define REPS 1
 int
@@ -711,7 +783,7 @@ tlbtest(void)
       join(pid[i]);
   }
   if(bt.threadsready)
-    printf(1, "tlbtest succeeded\n");
+    printf(1, "tlbtest ok\n");
   return 0;
 }
 
@@ -744,7 +816,7 @@ parkunparktest(void)
   var = 1;
   unpark(child.pid, (void *)&var);
   cthread_join(&child);
-  printf(1, "parkunparktest succeeded\n");
+  printf(1, "parkunparktest ok\n");
   return 0;
 }
 
@@ -768,10 +840,12 @@ wakeuptest(void)
   cthread_create(&child, lostchild, (void *)&var, (void *)&other);
   unpark(child.pid, (void *)&var);
   cthread_join(&child);
-  printf(1, "wakeuptest succeeded\n");
+  printf(1, "wakeuptest ok\n");
   return 0;
 }
 
+// for testing the implementation of the queue used in the semaphore, checks
+// FIFO
 int 
 queuetest(void)
 {
@@ -792,7 +866,7 @@ queuetest(void)
   return 0;
 }
 
-#define LIMIT 10
+#define LIMIT 1
 #define NTIMES 10
 #define THREADSN 10
 char buf[LIMIT];
@@ -800,7 +874,10 @@ int next;
 int first;
 slock_t vallock;
 int data;
+slock_t reclock;
+int expected;
 semaphore_t buflock;
+int pcfailed;
 int producer(void *a, void *b)
 {
   semaphore_t *slots = (semaphore_t *)a;
@@ -830,6 +907,15 @@ int consumer(void *a, void *b)
   for(i = 0; i < NTIMES; i++){
     sem_down(items);
     sem_down(&buflock);
+#if LIMIT == 1
+    slock_acquire(&reclock);
+    if(buf[first] != expected){
+      printf(1, "producerconsumertest failed\n");
+      pcfailed = 1;
+    }
+    expected++;
+    slock_release(&reclock);
+#endif
     first = (first + 1) % LIMIT;
     sem_up(&buflock);
     sem_up(slots);
@@ -837,6 +923,9 @@ int consumer(void *a, void *b)
   exit();
 }
 
+// the item created by the producer should be the one recieved by the consumer
+// otherwise, simply sees that there are no deadlocks happening due to lost
+// wakeups
 int
 producerconsumertest(void){
   first = 0;
@@ -858,7 +947,8 @@ producerconsumertest(void){
     cthread_join(&prod[i]);
     cthread_join(&cons[i]);
   }
-  printf(1, "producerconsumertest ok\n");
+  if(!pcfailed)
+    printf(1, "producerconsumertest ok\n");
   return 0;
 }
 
@@ -889,6 +979,7 @@ philosopher(void *a, void *b)
    printf(1, "%d eating\n", no);
    slock_release(&printlock);
    */
+   ate[no] = 1;
    sem_up(&forks[fork2]);
    sleep(10);
    sem_up(&forks[fork1]);
@@ -896,6 +987,8 @@ philosopher(void *a, void *b)
  exit();
 }
 
+// no deadlocks in dining philosophers and everyone is able to eat
+// (as the while loop is not infinite, there will not be starvation anyway)
 int
 diningphilosophers(void)
 {
@@ -930,15 +1023,15 @@ diningphilosophers(void)
 int 
 main(void)
 {
-  memtest1();
+  //memtest1();
   jointest();
   jointest1();
   waitjointest();
   childwaittest();
-  exectest();
+  //exectest();
   memtest();
   cottontest1();
-  twoexectest();
+  //twoexectest();
   //toomanythreadstest();
   tickettest();
   racetest();
