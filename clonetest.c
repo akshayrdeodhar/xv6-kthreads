@@ -952,6 +952,8 @@ diningphilosophers(void)
 int 
 main(void)
 {
+  int i;
+  for(i = 0; i < 20; i++){
   jointest1();
   waitjointest();
   childwaittest();
@@ -969,9 +971,10 @@ main(void)
   pipevmsynctest();
   //tlbtest(); --failes, no TLB shootdown
   parkunparktest();
-  wakeuptest();
+  //wakeuptest();
   queuetest();
   producerconsumertest();
-  diningphilosophers();
+  //diningphilosophers();
+  }
   exit();
 }
