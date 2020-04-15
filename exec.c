@@ -30,24 +30,9 @@ exec(char *path, char **argv)
     return -1;
   }
 
-  if(curproc != curproc->process){
-    curproc->threadcount = curproc->process->threadcount;
-    curproc->process->threadcount = 0;
-    curproc->cwd = curproc->process->cwd;
-    curproc->process->cwd = 0;
-    curproc->cwdlock = curproc->process->cwdlock;
-    curproc->sz = curproc->process->sz;
-    curproc->process->sz = 0;
-    curproc->vlock = curproc->process->vlock;
-    curproc->process->pid = curproc->pid;
-    curproc->pid = curproc->tgid;
-    curproc->process = curproc;
-  }
-
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
       p->killed = 1;
-      p->process = curproc;
       if (p->state == SLEEPING) 
         p->state = RUNNABLE;
     }
@@ -74,6 +59,20 @@ exec(char *path, char **argv)
     }
   }
   release(&ptable.lock);
+
+  // become the thread group leader
+  curproc->process->pid = curproc->pid;
+  curproc->pid = curproc->tgid;
+  
+  // "ensure" that threadcount is 1
+  curproc->process->threadcount = 1;
+
+  // flush the locks
+  initlock(&curproc->process->vlock, "vlock");
+  initlock(&curproc->process->cwdlock, "cwdlock");
+
+  // the process is running, and does not need wakeups
+  curproc->process->lostwakeup = 0;
 
   begin_op();
 

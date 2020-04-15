@@ -586,6 +586,9 @@ cwdsynctest(void)
     unlink("testdir");
   }else {
     close(fp);
+    unlink("cwdtest");
+    chdir("../");
+    unlink("testdir");
     printf(1, "cwdsynctest ok\n");
   }
   return 0;
@@ -761,7 +764,7 @@ parkunparktest(void)
 int
 lostchild(void *var, void *b)
 {
-  sleep(1000);
+  sleep(10);
   park(var);
   cthread_exit();
 }
@@ -902,7 +905,7 @@ philosopher(void *a, void *b)
    slock_release(&printlock);
    */
    sem_down(&forks[fork1]);
-   sleep(10);
+   sleep(1);
    sem_down(&forks[fork2]);
    /*slock_acquire(&printlock);
    printf(1, "%d eating\n", no);
@@ -910,7 +913,7 @@ philosopher(void *a, void *b)
    */
    ate[no] = 1;
    sem_up(&forks[fork2]);
-   sleep(10);
+   sleep(1);
    sem_up(&forks[fork1]);
  }
  exit();
@@ -953,7 +956,7 @@ int
 main(void)
 {
   int i;
-  for(i = 0; i < 20; i++){
+  jointest1();
   jointest1();
   waitjointest();
   childwaittest();
@@ -967,14 +970,13 @@ main(void)
   childkilltest();
   vmemtest();
   vmsynctest();
-  //cwdsynctest();
+  cwdsynctest();
   pipevmsynctest();
   //tlbtest(); --failes, no TLB shootdown
   parkunparktest();
-  //wakeuptest();
+  wakeuptest();
   queuetest();
   producerconsumertest();
-  //diningphilosophers();
-  }
+  diningphilosophers();
   exit();
 }
