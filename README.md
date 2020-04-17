@@ -83,6 +83,8 @@ does not exist, returns -1. If the thread is not the process group leader, frees
 up it's kernel stack. Holds *ptable.lock* at all times except when it is
 sleep-waiting for the thread to exit. If successful, returns *pid*. 
 
+If *exec* occurs while it is sleep-waiting, dies.
+
 This nature is for supporting waiting for a specific thread to exit. Waiting for
 any thread to exit seems useless.
 
@@ -126,7 +128,19 @@ while it is being copied. Initializes the *threadcount* to 1.
 
 ### **exec**
 
-Exec is invalid when a process is multithreaded.
+When a thread execs, all other threads in the process are terminated, and the
+calling thread waits for them to terminate before becoming RUNNABLE. The calling
+thread assumes the identity of the thread group leader before marking any of the
+other threads as *killed*. The lock on the virtual address space is held when
+the new process is assigned the page directory constructed and the size, *sz*.
+
+If two threads call exec at the same time, the one which is called first will
+become the thread group leader. 
+
+If one thread calls exec and another calls clone, *marking the new thread as
+RUNNABLE, and marking all threads in the process as killed is serialized by
+ptable.lock*. So either the thread is created and then terminated, or it is not
+created at all.
 
 ### **wait**
 
@@ -137,6 +151,10 @@ threads in this process 0, and marks their struct procs as UNUSED. *ptable.lock*
 is held while checking and cleaning. The reason behind this is to allow *join*
 to clean up threads before *wait* tries to clean them up, and to ensure that a
 single call to *wait* touches only one child process.
+
+If exec is called in a process, the other threads in the process (which have
+been terminated by the thread calling *exec*) are cleaned *after* the new
+process which runs after *exec* is complete.
 
 > Note: *threadcount* is the number of threads in the process which are not ZOMBIE
 > or UNUSED.
