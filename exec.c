@@ -28,8 +28,50 @@ exec(char *path, char **argv)
     release(&ptable.lock);
     return -1;
   }
-  
+
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
+      p->killed = 1;
+      if (p->state == SLEEPING) 
+        p->state = RUNNABLE;
+    }
+  }
   release(&ptable.lock);
+
+  // Wait for them to die
+  acquire(&ptable.lock);
+  for (;;) {
+    alive = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      // assumption: wait() will clear PID, TID
+      if (p->tgid == curproc->tgid && p != curproc 
+                                   && p->state != ZOMBIE) {
+        alive = 1;
+	break;
+      }
+    }
+    if (alive) {
+      sleep(curproc->process, &ptable.lock);
+    }
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  // become the thread group leader
+  curproc->process->pid = curproc->pid;
+  curproc->pid = curproc->tgid;
+  
+  // "ensure" that threadcount is 1
+  curproc->process->threadcount = 1;
+
+  // flush the locks
+  initlock(&curproc->process->vlock, "vlock");
+  initlock(&curproc->process->cwdlock, "cwdlock");
+
+  // the process is running, and does not need wakeups
+  curproc->process->lostwakeup = 0;
 
   begin_op();
 
