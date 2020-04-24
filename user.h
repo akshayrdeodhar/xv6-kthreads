@@ -23,6 +23,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int clone(int (*fn)(void *, void *), void *arg1, void *arg2, void *child_stack, int flags);
+int join(int pid);
+int park(void *chan);
+int unpark(int pid, void *chan);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -37,3 +41,59 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+// ucthreads.c
+typedef struct{
+  int pid;
+  char *stack;
+}cthread_t;
+int cthread_create(cthread_t *thread, int (*fn)(void *, void *), void *arg1, void *arg2);
+int cthread_cut(cthread_t *thread);
+int cthread_join(cthread_t *thread);
+void cthread_exit(void) __attribute__((noreturn));
+
+// ticket lock
+typedef struct{
+  uint ticket;
+  uint turn;
+}tlock_t;
+
+void tlock_init(tlock_t *);
+void tlock_acquire(tlock_t *);
+void tlock_release(tlock_t *);
+
+// spinlock
+typedef uint slock_t;
+
+void slock_init(slock_t *);
+void slock_acquire(slock_t *);
+void slock_release(slock_t *);
+
+// queue
+typedef struct qnode{
+  struct qnode *next;
+  int val;
+}qnode;
+
+#define QMAX 100
+typedef struct{
+  int arr[QMAX];
+  int start, end;
+  uint count;
+}queue;
+
+void qinit(queue *q);
+void enq(queue *q, int x);
+int qisempty(queue *q);
+int qisfull(queue *q);
+int deq(queue *q);
+
+typedef struct{
+  slock_t guard;
+  queue waitq;
+  int count;
+}semaphore_t;
+
+void sem_init(semaphore_t *s, int n);
+void sem_up(semaphore_t *s);
+void sem_down(semaphore_t *s);

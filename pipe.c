@@ -2,9 +2,9 @@
 #include "defs.h"
 #include "param.h"
 #include "mmu.h"
+#include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
-#include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
 
@@ -74,14 +74,16 @@ pipeclose(struct pipe *p, int writable)
     release(&p->lock);
 }
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 //PAGEBREAK: 40
 int
 pipewrite(struct pipe *p, char *addr, int n)
 {
   int i;
-
+  int chunk1, chunk2, bytes;
   acquire(&p->lock);
-  for(i = 0; i < n; i++){
+  for(i = 0; i < n;){
     while(p->nwrite == p->nread + PIPESIZE){  //DOC: pipewrite-full
       if(p->readopen == 0 || myproc()->killed){
         release(&p->lock);
@@ -90,7 +92,26 @@ pipewrite(struct pipe *p, char *addr, int n)
       wakeup(&p->nread);
       sleep(&p->nwrite, &p->lock);  //DOC: pipewrite-sleep
     }
-    p->data[p->nwrite++ % PIPESIZE] = addr[i];
+    bytes = MIN(p->nread + PIPESIZE - p->nwrite, n - i);
+    if(bytes > (PIPESIZE - (p->nwrite % PIPESIZE))){
+      chunk1 = PIPESIZE - (p->nwrite % PIPESIZE);
+    }else{
+      chunk1 = bytes;
+    }
+    chunk2 = bytes - chunk1;
+
+    if(chunk1 && (copy_from_user((void *)&p->data[p->nwrite % PIPESIZE], (void *)&addr[i], chunk1) == 0)){
+      release(&p->lock);
+      return -1;
+    }
+    if(chunk2 && (copy_from_user((void *)p->data, (void *)&addr[i + chunk1], chunk2) == 0)){
+      release(&p->lock);
+      return -1;
+    }
+
+    p->nwrite += bytes;
+    i += bytes;
+    //p->data[p->nwrite++ % PIPESIZE] = addr[i];
   }
   wakeup(&p->nread);  //DOC: pipewrite-wakeup1
   release(&p->lock);
@@ -100,7 +121,8 @@ pipewrite(struct pipe *p, char *addr, int n)
 int
 piperead(struct pipe *p, char *addr, int n)
 {
-  int i;
+  //int i;
+  int bytes, chunk1, chunk2;
 
   acquire(&p->lock);
   while(p->nread == p->nwrite && p->writeopen){  //DOC: pipe-empty
@@ -110,12 +132,23 @@ piperead(struct pipe *p, char *addr, int n)
     }
     sleep(&p->nread, &p->lock); //DOC: piperead-sleep
   }
-  for(i = 0; i < n; i++){  //DOC: piperead-copy
-    if(p->nread == p->nwrite)
-      break;
-    addr[i] = p->data[p->nread++ % PIPESIZE];
+  bytes = MIN(p->nwrite - p->nread, n);
+  if(bytes > (PIPESIZE - (p->nread % PIPESIZE))){
+    chunk1 = PIPESIZE - (p->nread % PIPESIZE);
+  }else{
+    chunk1 = bytes;
   }
+  chunk2 = bytes - chunk1;
+  if(chunk1 && (copy_to_user((void *)addr, (void *)&p->data[p->nread % PIPESIZE], chunk1) == 0)){
+    release(&p->lock);
+    return -1;
+  }
+  if(chunk2 && (copy_to_user((void *)(addr + chunk1), (void *)&p->data, chunk2) == 0)){
+    release(&p->lock);
+    return -1;
+  }
+  p->nread += bytes;
   wakeup(&p->nwrite);  //DOC: piperead-wakeup
   release(&p->lock);
-  return i;
+  return bytes;
 }

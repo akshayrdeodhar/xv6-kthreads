@@ -3,6 +3,7 @@
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
+#include "spinlock.h"
 #include "proc.h"
 #include "x86.h"
 #include "syscall.h"
@@ -12,16 +13,22 @@
 // Arguments on the stack, from the user call to the C
 // library system call function. The saved user %esp points
 // to a saved program counter, and then the first argument.
-
+//
 // Fetch the int at addr from the current process.
 int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
 
-  if(addr >= curproc->sz || addr+4 > curproc->sz)
+  acquire(vlock);
+  if(addr >= curproc->process->sz || addr+4 > curproc->process->sz){
+    release(vlock);
     return -1;
+  }
   *ip = *(int*)(addr);
+  release(vlock);
+
   return 0;
 }
 
@@ -33,15 +40,24 @@ fetchstr(uint addr, char **pp)
 {
   char *s, *ep;
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
 
-  if(addr >= curproc->sz)
+  // this check is useless, check again before deref
+
+  acquire(vlock);
+  if(addr >= curproc->process->sz){
+    release(vlock);
     return -1;
-  *pp = (char*)addr;
-  ep = (char*)curproc->sz;
-  for(s = *pp; s < ep; s++){
-    if(*s == 0)
-      return s - *pp;
   }
+  *pp = (char*)addr;
+  ep = (char*)curproc->process->sz;
+  for(s = *pp; s < ep; s++){
+    if(*s == 0){
+      release(vlock);
+      return s - *pp;
+    }
+  }
+  release(vlock);
   return -1;
 }
 
@@ -60,12 +76,18 @@ argptr(int n, char **pp, int size)
 {
   int i;
   struct proc *curproc = myproc();
+  struct spinlock *vlock = &(curproc->process->vlock);
  
   if(argint(n, &i) < 0)
     return -1;
-  if(size < 0 || (uint)i >= curproc->sz || (uint)i+size > curproc->sz)
+  // this check is technically useless, check again before deref, atomically
+  acquire(vlock);
+  if(size < 0 || (uint)i >= curproc->process->sz || (uint)i+size > curproc->process->sz) {
+    release(vlock);
     return -1;
+  }
   *pp = (char*)i;
+  release(vlock);
   return 0;
 }
 
@@ -103,6 +125,10 @@ extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
+extern int sys_clone(void);
+extern int sys_join(void);
+extern int sys_park(void);
+extern int sys_unpark(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -126,6 +152,10 @@ static int (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_clone]   sys_clone,
+[SYS_join]    sys_join,
+[SYS_park]    sys_park,
+[SYS_unpark]  sys_unpark,
 };
 
 void

@@ -2,6 +2,7 @@
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
+#include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
 #include "x86.h"
@@ -19,6 +20,59 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
+  
+  // Kill all other threads in the process
+  acquire(&ptable.lock);
+
+  if(curproc->killed || curproc->process->threadcount > 1){
+    release(&ptable.lock);
+    return -1;
+  }
+
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->tgid == curproc->tgid && p->pid != curproc->pid) {
+      p->killed = 1;
+      if (p->state == SLEEPING) 
+        p->state = RUNNABLE;
+    }
+  }
+  release(&ptable.lock);
+
+  // Wait for them to die
+  acquire(&ptable.lock);
+  for (;;) {
+    alive = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      // assumption: wait() will clear PID, TID
+      if (p->tgid == curproc->tgid && p != curproc 
+                                   && p->state != ZOMBIE) {
+        alive = 1;
+	break;
+      }
+    }
+    if (alive) {
+      sleep(curproc->process, &ptable.lock);
+    }
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  // become the thread group leader
+  curproc->process->pid = curproc->pid;
+  curproc->pid = curproc->tgid;
+  
+  // "ensure" that threadcount is 1
+  curproc->process->threadcount = 1;
+
+  // flush the locks
+  initlock(&curproc->process->vlock, "vlock");
+  initlock(&curproc->process->cwdlock, "cwdlock");
+
+  // the process is running, and does not need wakeups
+  curproc->process->lostwakeup = 0;
+
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -30,7 +84,7 @@ exec(char *path, char **argv)
   pgdir = 0;
 
   // Check ELF header
-  if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
+  if(readi(ip, (char*)&elf, 0, sizeof(elf), 0) != sizeof(elf))
     goto bad;
   if(elf.magic != ELF_MAGIC)
     goto bad;
@@ -41,7 +95,7 @@ exec(char *path, char **argv)
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
+    if(readi(ip, (char*)&ph, off, sizeof(ph), 0) != sizeof(ph))
       goto bad;
     if(ph.type != ELF_PROG_LOAD)
       continue;
@@ -93,10 +147,16 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
+  initlock(&curproc->vlock, "vlock");
+
   // Commit to the user image.
+
+  acquire(&curproc->vlock);
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
+  release(&curproc->vlock);
+
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);

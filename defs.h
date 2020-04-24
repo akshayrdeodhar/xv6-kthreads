@@ -49,9 +49,9 @@ void            iupdate(struct inode*);
 int             namecmp(const char*, const char*);
 struct inode*   namei(char*);
 struct inode*   nameiparent(char*, char*);
-int             readi(struct inode*, char*, uint, uint);
+int             readi(struct inode*, char*, uint, uint, char);
 void            stati(struct inode*, struct stat*);
-int             writei(struct inode*, char*, uint, uint);
+int             writei(struct inode*, char*, uint, uint, char);
 
 // ide.c
 void            ideinit(void);
@@ -80,6 +80,7 @@ void            lapiceoi(void);
 void            lapicinit(void);
 void            lapicstartap(uchar, uint);
 void            microdelay(int);
+void            lapicexclbcast(uint);
 
 // log.c
 void            initlog(int dev);
@@ -106,6 +107,10 @@ int             pipewrite(struct pipe*, char*, int);
 int             cpuid(void);
 void            exit(void);
 int             fork(void);
+int             clone(int (*fn)(void *, void *), void *arg1, void *arg2, void *stack, int flags);
+int             join(int pid);
+int             park(void *);
+int             unpark(int, void *);
 int             growproc(int);
 int             kill(int);
 struct cpu*     mycpu(void);

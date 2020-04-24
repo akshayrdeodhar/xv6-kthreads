@@ -37,22 +37,40 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
+  struct spinlock vlock;       // Lock protecting virtual address space (sz, pgdir)
+  uint threadcount;            // Number of alive threads sharing virtual memory
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
-  struct proc *parent;         // Parent process
+  int tgid;                    // Thread Group ID
+  // set this to np when fork() happens 
+  struct proc *process;        // thread group leader
+  struct proc *parent;         // thread group leader of parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
+  struct spinlock cwdlock;
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  void *lostwakeup;             // Wakeup delivered before trying to sleep in wait
 };
+
+struct table {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+};
+
+extern struct table ptable;
 
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+void *copy_from_user(void *dst, const void *src, uint n);
+void *copy_to_user(void *dst, const void *src, uint n);
+int copy_str_from_user(char *dst, const char *src, uint limit);

@@ -14,8 +14,8 @@
 #include "param.h"
 #include "stat.h"
 #include "mmu.h"
-#include "proc.h"
 #include "spinlock.h"
+#include "proc.h"
 #include "sleeplock.h"
 #include "fs.h"
 #include "buf.h"
@@ -290,8 +290,9 @@ ilock(struct inode *ip)
   struct buf *bp;
   struct dinode *dip;
 
-  if(ip == 0 || ip->ref < 1)
+  if(ip == 0 || ip->ref < 1){
     panic("ilock");
+  }
 
   acquiresleep(&ip->lock);
 
@@ -450,7 +451,7 @@ stati(struct inode *ip, struct stat *st)
 // Read data from inode.
 // Caller must hold ip->lock.
 int
-readi(struct inode *ip, char *dst, uint off, uint n)
+readi(struct inode *ip, char *dst, uint off, uint n, char user)
 {
   uint tot, m;
   struct buf *bp;
@@ -469,7 +470,14 @@ readi(struct inode *ip, char *dst, uint off, uint n)
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
-    memmove(dst, bp->data + off%BSIZE, m);
+    if(user){
+      if(m && (copy_to_user(dst, bp->data + off%BSIZE, m) == 0)){
+        brelse(bp);
+	return -1;
+      }
+    }else{
+      memmove(dst, bp->data + off%BSIZE, m);
+    }
     brelse(bp);
   }
   return n;
@@ -479,7 +487,7 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 // Write data to inode.
 // Caller must hold ip->lock.
 int
-writei(struct inode *ip, char *src, uint off, uint n)
+writei(struct inode *ip, char *src, uint off, uint n, char user)
 {
   uint tot, m;
   struct buf *bp;
@@ -498,7 +506,14 @@ writei(struct inode *ip, char *src, uint off, uint n)
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
-    memmove(bp->data + off%BSIZE, src, m);
+    if(user){
+      if(m && (copy_from_user(bp->data + off%BSIZE, src, m) == 0)){
+        brelse(bp);
+	return -1;
+      }
+    }else{
+      memmove(bp->data + off%BSIZE, src, m);
+    }
     log_write(bp);
     brelse(bp);
   }
@@ -531,7 +546,7 @@ dirlookup(struct inode *dp, char *name, uint *poff)
     panic("dirlookup not DIR");
 
   for(off = 0; off < dp->size; off += sizeof(de)){
-    if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if(readi(dp, (char*)&de, off, sizeof(de), 0) != sizeof(de))
       panic("dirlookup read");
     if(de.inum == 0)
       continue;
@@ -563,7 +578,7 @@ dirlink(struct inode *dp, char *name, uint inum)
 
   // Look for an empty dirent.
   for(off = 0; off < dp->size; off += sizeof(de)){
-    if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if(readi(dp, (char*)&de, off, sizeof(de), 0) != sizeof(de))
       panic("dirlink read");
     if(de.inum == 0)
       break;
@@ -571,7 +586,7 @@ dirlink(struct inode *dp, char *name, uint inum)
 
   strncpy(de.name, name, DIRSIZ);
   de.inum = inum;
-  if(writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+  if(writei(dp, (char*)&de, off, sizeof(de), 0) != sizeof(de))
     panic("dirlink");
 
   return 0;
@@ -624,12 +639,18 @@ skipelem(char *path, char *name)
 static struct inode*
 namex(char *path, int nameiparent, char *name)
 {
-  struct inode *ip, *next;
+  struct inode *ip, *next, *cwd;
+  struct proc *curproc = myproc();
 
-  if(*path == '/')
+  if(*path == '/'){
     ip = iget(ROOTDEV, ROOTINO);
-  else
-    ip = idup(myproc()->cwd);
+  }
+  else{
+    acquire(&curproc->process->cwdlock);
+    cwd = curproc->process->cwd;
+    release(&curproc->process->cwdlock);
+    ip = idup(cwd);
+  }
 
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
