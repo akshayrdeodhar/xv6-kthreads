@@ -25,7 +25,7 @@ exec(char *path, char **argv)
   // Kill all other threads in the process
   acquire(&ptable.lock);
 
-  if(curproc->killed || curproc->process->threadcount > 1){
+  if(curproc->killed){
     release(&ptable.lock);
     return -1;
   }

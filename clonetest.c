@@ -959,10 +959,10 @@ main(void)
   jointest1();
   waitjointest();
   childwaittest();
-  //exectest();
+  exectest();
   memtest();
   cottontest1();
-  //twoexectest();
+  twoexectest();
   toomanythreadstest();  
   tickettest();
   racetest();
