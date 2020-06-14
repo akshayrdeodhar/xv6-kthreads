@@ -955,7 +955,6 @@ diningphilosophers(void)
 int 
 main(void)
 {
-  int i;
   jointest1();
   jointest1();
   waitjointest();
